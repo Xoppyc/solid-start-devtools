@@ -183,6 +183,7 @@
   fill: none;
   stroke: var(--start-dt-border);
   stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 [data-solid-reactivity-edge='muted'] {

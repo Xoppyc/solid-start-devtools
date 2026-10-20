@@ -5,6 +5,7 @@ export const NODE_HEIGHT = 44;
 export const LAYER_GAP = 76;
 export const ROW_GAP = 14;
 export const PADDING = 24;
+export const ARROW_SIZE = 8;
 
 export interface LayoutInput {
   id: string;
@@ -270,7 +271,7 @@ export function placeHoverCard(input: HoverCardInput): HoverCardPlacement {
 export function edgePath(from: LayoutNode, to: LayoutNode): string {
   const startX = from.x + NODE_WIDTH;
   const startY = from.y + NODE_HEIGHT / 2;
-  const endX = to.x;
+  const endX = to.x - ARROW_SIZE;
   const endY = to.y + NODE_HEIGHT / 2;
   const distance = Math.max(Math.abs(endX - startX) * 0.5, 40);
   return `M ${startX} ${startY} C ${startX + distance} ${startY}, ${endX - distance} ${endY}, ${endX} ${endY}`;

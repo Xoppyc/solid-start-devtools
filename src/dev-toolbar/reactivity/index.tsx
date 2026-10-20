@@ -7,6 +7,7 @@ import { Text } from '../../ui/Text.js';
 import { FitIcon, GraphIcon, PauseIcon, PlayIcon } from '../icons.js';
 import { formatValue, typeName } from './format.js';
 import {
+  ARROW_SIZE,
   edgePath,
   layoutGraph,
   NODE_HEIGHT,
@@ -526,10 +527,11 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                         <marker
                           id="solid-reactivity-arrow"
                           viewBox="0 0 10 10"
-                          refX="9"
+                          refX="0"
                           refY="5"
-                          markerWidth="6"
-                          markerHeight="6"
+                          markerUnits="userSpaceOnUse"
+                          markerWidth={ARROW_SIZE}
+                          markerHeight={ARROW_SIZE}
                           orient="auto-start-reverse"
                         >
                           <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />

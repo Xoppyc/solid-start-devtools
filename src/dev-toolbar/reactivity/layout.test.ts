@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARROW_SIZE,
   edgePath,
   layoutGraph,
   LAYER_GAP,
@@ -125,14 +126,15 @@ describe('layoutGraph', () => {
 });
 
 describe('edgePath', () => {
-  it('starts at the right edge of the source and ends at the left edge of the target', () => {
+  it('starts at the right edge of the source and ends arrow-size before the left edge of the target', () => {
     const from = { id: 'a', layer: 0, index: 0, x: 0, y: 0 };
     const to = { id: 'b', layer: 1, index: 0, x: 280, y: 0 };
     const middle = NODE_HEIGHT / 2;
-    const curve = Math.max((to.x - NODE_WIDTH) * 0.5, 40);
+    const endX = to.x - ARROW_SIZE;
+    const curve = Math.max((endX - NODE_WIDTH) * 0.5, 40);
 
     expect(edgePath(from, to)).toBe(
-      `M ${NODE_WIDTH} ${middle} C ${NODE_WIDTH + curve} ${middle}, ${to.x - curve} ${middle}, ${to.x} ${middle}`,
+      `M ${NODE_WIDTH} ${middle} C ${NODE_WIDTH + curve} ${middle}, ${endX - curve} ${middle}, ${endX} ${middle}`,
     );
   });
 
