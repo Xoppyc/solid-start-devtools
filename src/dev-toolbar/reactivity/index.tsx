@@ -534,7 +534,7 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                           markerHeight={ARROW_SIZE}
                           orient="auto-start-reverse"
                         >
-                          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
                         </marker>
                       </defs>
                       <For each={visibleEdges()}>
