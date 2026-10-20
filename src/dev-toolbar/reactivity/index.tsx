@@ -536,23 +536,42 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                         >
                           <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
                         </marker>
+                        <marker
+                          id="solid-reactivity-arrow-active"
+                          viewBox="0 0 10 10"
+                          refX="2"
+                          refY="5"
+                          markerUnits="userSpaceOnUse"
+                          markerWidth={ARROW_SIZE + 2}
+                          markerHeight={ARROW_SIZE + 2}
+                          orient="auto-start-reverse"
+                        >
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
+                        </marker>
                       </defs>
                       <For each={visibleEdges()}>
-                        {(edge) => (
-                          <Show when={layout().nodes.get(edge.from)}>
-                            {(from) => (
-                              <Show when={layout().nodes.get(edge.to)}>
-                                {(to) => (
-                                  <path
-                                    data-solid-reactivity-edge={edgeRoleOf(edge)}
-                                    d={edgePath(from(), to())}
-                                    marker-end="url(#solid-reactivity-arrow)"
-                                  />
-                                )}
-                              </Show>
-                            )}
-                          </Show>
-                        )}
+                        {(edge) => {
+                          const role = () => edgeRoleOf(edge);
+                          return (
+                            <Show when={layout().nodes.get(edge.from)}>
+                              {(from) => (
+                                <Show when={layout().nodes.get(edge.to)}>
+                                  {(to) => (
+                                    <path
+                                      data-solid-reactivity-edge={role()}
+                                      d={edgePath(from(), to())}
+                                      marker-end={
+                                        role() === 'plain' || role() === 'muted'
+                                          ? 'url(#solid-reactivity-arrow)'
+                                          : 'url(#solid-reactivity-arrow-active)'
+                                      }
+                                    />
+                                  )}
+                                </Show>
+                              )}
+                            </Show>
+                          );
+                        }}
                       </For>
                     </svg>
 
