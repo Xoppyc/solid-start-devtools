@@ -74,13 +74,57 @@ export function DevToolbar(props: DevToolbarProps) {
       };
 
       let isDirty = false;
+      let startPointerX = 0;
+      let startPointerY = 0;
+      let isDragging = false;
+
+      let ghostEl: HTMLDivElement | undefined;
+
+      const ensureGhost = () => {
+        if (!ghostEl) {
+          ghostEl = document.createElement('div');
+          ghostEl.dataset.solidDevToolbarGhost = '';
+          document.body.appendChild(ghostEl);
+        }
+      };
+
+      const removeGhost = () => {
+        ghostEl?.remove();
+        ghostEl = undefined;
+      };
+
+      const updateGhostPosition = (anchorX: 'left' | 'right', anchorY: 'top' | 'bottom') => {
+        if (!ghostEl) return;
+        const pillRect = handle.getBoundingClientRect();
+        ghostEl.style.width = `${pillRect.width}px`;
+        ghostEl.style.height = `${pillRect.height}px`;
+        ghostEl.style.top = anchorY === 'top' ? '1rem' : 'auto';
+        ghostEl.style.bottom = anchorY === 'bottom' ? '1rem' : 'auto';
+        ghostEl.style.left = anchorX === 'left' ? '1rem' : 'auto';
+        ghostEl.style.right = anchorX === 'right' ? '1rem' : 'auto';
+      };
 
       const ac = new AbortController();
+
+      handle.addEventListener(
+        'click',
+        (e) => {
+          if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+          }
+        },
+        { capture: true, signal: ac.signal },
+      );
 
       handle.addEventListener(
         'mousedown',
         (e) => {
           isDown = true;
+          startPointerX = e.clientX;
+          startPointerY = e.clientY;
+          isDragging = false;
 
           const rect = current.getBoundingClientRect();
 
@@ -103,9 +147,13 @@ export function DevToolbar(props: DevToolbarProps) {
       window.addEventListener(
         'mouseup',
         () => {
-          if (isDown && !isDirty) {
+          if (isDown && isDragging) {
             const preferredAnchorX = currentX + centerX < window.innerWidth / 2 ? 'left' : 'right';
             const preferredAnchorY = currentY + centerY < window.innerHeight / 2 ? 'top' : 'bottom';
+
+            removeGhost();
+
+            const firstRect = handle.getBoundingClientRect();
 
             resetPosition();
 
@@ -115,6 +163,25 @@ export function DevToolbar(props: DevToolbarProps) {
             current.style.flexDirection =
               preferredAnchorY === 'bottom' ? 'column-reverse' : 'column';
             current.style.alignItems = preferredAnchorX === 'left' ? 'flex-start' : 'flex-end';
+
+            const lastRect = handle.getBoundingClientRect();
+            const deltaX = firstRect.left - lastRect.left;
+            const deltaY = firstRect.top - lastRect.top;
+
+            if (deltaX !== 0 || deltaY !== 0) {
+              handle.animate(
+                [
+                  { transform: `translate(${deltaX}px, ${deltaY}px)` },
+                  { transform: 'translate(0, 0)' },
+                ],
+                {
+                  duration: 240,
+                  easing: 'cubic-bezier(0.2, 0, 0, 1)',
+                },
+              );
+            }
+          } else if (isDown) {
+            removeGhost();
           }
           isDown = false;
         },
@@ -127,15 +194,26 @@ export function DevToolbar(props: DevToolbarProps) {
         'mousemove',
         (e) => {
           if (isDown) {
-            if (isDirty) {
-              resetPosition();
-              isDirty = false;
+            if (!isDragging && Math.hypot(e.clientX - startPointerX, e.clientY - startPointerY) > 4) {
+              isDragging = true;
+              ensureGhost();
             }
-            currentX = e.clientX - offsetX;
-            currentY = e.clientY - offsetY;
 
-            current.style.left = `${currentX}px`;
-            current.style.top = `${currentY}px`;
+            if (isDragging) {
+              if (isDirty) {
+                resetPosition();
+                isDirty = false;
+              }
+              currentX = e.clientX - offsetX;
+              currentY = e.clientY - offsetY;
+
+              current.style.left = `${currentX}px`;
+              current.style.top = `${currentY}px`;
+
+              const anchorX = currentX + centerX < window.innerWidth / 2 ? 'left' : 'right';
+              const anchorY = currentY + centerY < window.innerHeight / 2 ? 'top' : 'bottom';
+              updateGhostPosition(anchorX, anchorY);
+            }
           }
         },
         {
@@ -145,6 +223,7 @@ export function DevToolbar(props: DevToolbarProps) {
       );
 
       return () => {
+        removeGhost();
         ac.abort();
       };
     },
