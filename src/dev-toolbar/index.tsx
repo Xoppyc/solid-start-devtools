@@ -80,11 +80,17 @@ export function DevToolbar(props: DevToolbarProps) {
 
       let ghostEl: HTMLDivElement | undefined;
 
-      const ensureGhost = () => {
+      const ensureGhost = (anchorX: 'left' | 'right', anchorY: 'top' | 'bottom') => {
         if (!ghostEl) {
           ghostEl = document.createElement('div');
           ghostEl.dataset.solidDevToolbarGhost = '';
-          current.appendChild(ghostEl);
+          ghostEl.dataset.entering = '';
+          current.prepend(ghostEl);
+          updateGhostPosition(anchorX, anchorY);
+          // Trigger smooth fade-in directly at target coordinates
+          requestAnimationFrame(() => {
+            ghostEl?.removeAttribute('data-entering');
+          });
         }
       };
 
@@ -102,7 +108,9 @@ export function DevToolbar(props: DevToolbarProps) {
 
         const targetX = anchorX === 'left' ? 0 : window.innerWidth - pillRect.width - 32;
         const targetY = anchorY === 'top' ? 0 : window.innerHeight - pillRect.height - 32;
-        ghostEl.style.transform = `translate(${targetX}px, ${targetY}px)`;
+        const transformStr = `translate(${targetX}px, ${targetY}px)`;
+        ghostEl.style.setProperty('--target-transform', transformStr);
+        ghostEl.style.transform = transformStr;
       };
 
       const ac = new AbortController();
@@ -198,7 +206,9 @@ export function DevToolbar(props: DevToolbarProps) {
             if (!isDragging && Math.hypot(e.clientX - startPointerX, e.clientY - startPointerY) > 4) {
               isDragging = true;
               handle.dataset.dragging = '';
-              ensureGhost();
+              const anchorX = currentX + centerX < window.innerWidth / 2 ? 'left' : 'right';
+              const anchorY = currentY + centerY < window.innerHeight / 2 ? 'top' : 'bottom';
+              ensureGhost(anchorX, anchorY);
             }
 
             if (isDragging) {

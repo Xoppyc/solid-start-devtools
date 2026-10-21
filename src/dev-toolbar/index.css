@@ -75,7 +75,7 @@
   top: 1rem;
   left: 1rem;
   pointer-events: none;
-  z-index: 2147483646;
+  z-index: 0;
   border-radius: 9999px;
   border: 1.5px dashed var(--start-dt-accent, #38bdf8);
   background: var(--start-dt-accent-soft, rgba(56, 189, 248, 0.15));
@@ -87,14 +87,12 @@
   transition:
     transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
     opacity 140ms ease-out;
-  animation: ghost-entrance 140ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
 }
 
-@keyframes ghost-entrance {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
+[data-solid-dev-toolbar-ghost][data-entering] {
+  opacity: 0;
+  transform: var(--target-transform) scale(0.95) !important;
+  transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
