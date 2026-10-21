@@ -91,6 +91,7 @@ export function DevToolbar(props: DevToolbarProps) {
       const removeGhost = () => {
         ghostEl?.remove();
         ghostEl = undefined;
+        delete handle.dataset.dragging;
       };
 
       const updateGhostPosition = (anchorX: 'left' | 'right', anchorY: 'top' | 'bottom') => {
@@ -98,10 +99,10 @@ export function DevToolbar(props: DevToolbarProps) {
         const pillRect = handle.getBoundingClientRect();
         ghostEl.style.width = `${pillRect.width}px`;
         ghostEl.style.height = `${pillRect.height}px`;
-        ghostEl.style.top = anchorY === 'top' ? '1rem' : 'auto';
-        ghostEl.style.bottom = anchorY === 'bottom' ? '1rem' : 'auto';
-        ghostEl.style.left = anchorX === 'left' ? '1rem' : 'auto';
-        ghostEl.style.right = anchorX === 'right' ? '1rem' : 'auto';
+
+        const targetX = anchorX === 'left' ? 0 : window.innerWidth - pillRect.width - 32;
+        const targetY = anchorY === 'top' ? 0 : window.innerHeight - pillRect.height - 32;
+        ghostEl.style.transform = `translate(${targetX}px, ${targetY}px)`;
       };
 
       const ac = new AbortController();
@@ -196,6 +197,7 @@ export function DevToolbar(props: DevToolbarProps) {
           if (isDown) {
             if (!isDragging && Math.hypot(e.clientX - startPointerX, e.clientY - startPointerY) > 4) {
               isDragging = true;
+              handle.dataset.dragging = '';
               ensureGhost();
             }
 
