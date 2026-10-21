@@ -84,7 +84,7 @@ export function DevToolbar(props: DevToolbarProps) {
         if (!ghostEl) {
           ghostEl = document.createElement('div');
           ghostEl.dataset.solidDevToolbarGhost = '';
-          document.body.appendChild(ghostEl);
+          current.appendChild(ghostEl);
         }
       };
 
