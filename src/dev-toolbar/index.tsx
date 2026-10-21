@@ -12,9 +12,15 @@ import { excludeOwner, includeOwner } from './ownership/registry.js';
 import { excludeReactiveOwner, includeReactiveOwner } from './reactivity/registry.js';
 import './index.css';
 
-const ErrorViewer = clientOnly(() => import('./error-viewer/index.js'), { lazy: true });
-const ReactivityViewer = clientOnly(() => import('./reactivity/index.js'), { lazy: true });
-const OwnershipViewer = clientOnly(() => import('./ownership/index.js'), { lazy: true });
+const ErrorViewer = clientOnly(() => import('./error-viewer/index.js'), {
+  lazy: true,
+});
+const ReactivityViewer = clientOnly(() => import('./reactivity/index.js'), {
+  lazy: true,
+});
+const OwnershipViewer = clientOnly(() => import('./ownership/index.js'), {
+  lazy: true,
+});
 
 export interface DevToolbarProps {
   children?: JSX.Element;
@@ -56,6 +62,9 @@ export function DevToolbar(props: DevToolbarProps) {
         (current.querySelector(':scope > [tc-toolbar]') as HTMLElement | null) ?? current;
 
       let isDown = false;
+      let startPointerX = 0;
+      let startPointerY = 0;
+      let isDragging = false;
 
       let offsetX = 0;
       let offsetY = 0;
@@ -81,6 +90,9 @@ export function DevToolbar(props: DevToolbarProps) {
         'mousedown',
         (e) => {
           isDown = true;
+          startPointerX = e.clientX;
+          startPointerY = e.clientY;
+          isDragging = false;
 
           const rect = current.getBoundingClientRect();
 
@@ -100,10 +112,22 @@ export function DevToolbar(props: DevToolbarProps) {
         },
       );
 
+      handle.addEventListener(
+        'click',
+        (e) => {
+          if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+          }
+        },
+        { capture: true, signal: ac.signal },
+      );
+
       window.addEventListener(
         'mouseup',
         () => {
-          if (isDown && !isDirty) {
+          if (isDown && isDragging) {
             const preferredAnchorX = currentX + centerX < window.innerWidth / 2 ? 'left' : 'right';
             const preferredAnchorY = currentY + centerY < window.innerHeight / 2 ? 'top' : 'bottom';
 
@@ -127,15 +151,23 @@ export function DevToolbar(props: DevToolbarProps) {
         'mousemove',
         (e) => {
           if (isDown) {
-            if (isDirty) {
-              resetPosition();
-              isDirty = false;
+            if (
+              !isDragging &&
+              Math.hypot(e.clientX - startPointerX, e.clientY - startPointerY) > 4
+            ) {
+              isDragging = true;
             }
-            currentX = e.clientX - offsetX;
-            currentY = e.clientY - offsetY;
+            if (isDragging) {
+              if (isDirty) {
+                resetPosition();
+                isDirty = false;
+              }
+              currentX = e.clientX - offsetX;
+              currentY = e.clientY - offsetY;
 
-            current.style.left = `${currentX}px`;
-            current.style.top = `${currentY}px`;
+              current.style.left = `${currentX}px`;
+              current.style.top = `${currentY}px`;
+            }
           }
         },
         {
@@ -212,7 +244,10 @@ export function DevToolbar(props: DevToolbarProps) {
           [call.instance]:
             call.type === 'request'
               ? { ...current[call.instance], request: call }
-              : ({ ...current[call.instance], response: call } as ServerFunctionInstance),
+              : ({
+                  ...current[call.instance],
+                  response: call,
+                } as ServerFunctionInstance),
         }));
       });
     }),
@@ -240,7 +275,14 @@ export function DevToolbar(props: DevToolbarProps) {
             <div>
               <SolidIcon title="Start Devtools Version" />
               <div data-solid-dev-toolbar-version>
-                <Text options={{ size: 'xs', weight: 'semibold', font: 'mono', wrap: 'nowrap' }}>
+                <Text
+                  options={{
+                    size: 'xs',
+                    weight: 'semibold',
+                    font: 'mono',
+                    wrap: 'nowrap',
+                  }}
+                >
                   {version}
                 </Text>
               </div>
