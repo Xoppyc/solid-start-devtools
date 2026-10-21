@@ -62,6 +62,22 @@
   box-shadow: var(--start-dt-shadow);
 }
 
+[data-solid-dev-toolbar-ghost] {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2147483646;
+  border-radius: 9999px;
+  border: 1.5px dashed var(--start-dt-accent);
+  background: var(--start-dt-accent-soft);
+  opacity: 0.7;
+  transition:
+    top 180ms cubic-bezier(0.2, 0, 0, 1),
+    left 180ms cubic-bezier(0.2, 0, 0, 1),
+    bottom 180ms cubic-bezier(0.2, 0, 0, 1),
+    right 180ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 150ms ease;
+}
+
 [data-solid-dev-toolbar] > [tc-toolbar] > div {
   display: flex;
 
