@@ -1,5 +1,5 @@
-import { Portal } from '@solidjs/web';
-import { createEffect, createSignal, onCleanup, Show, type JSX } from 'solid-js';
+import { JSX, Portal } from '@solidjs/web';
+import { createEffect, createSignal, Show } from 'solid-js';
 import { findComponentFromElement, type InspectedComponent } from './lookup.js';
 import './overlay.css';
 
@@ -57,61 +57,67 @@ export function InspectorOverlay(props: InspectorOverlayProps): JSX.Element {
     });
   }
 
-  createEffect(() => {
-    if (!props.active || typeof window === 'undefined') return;
+  createEffect(
+    () => props.active,
+    (active) => {
+      if (!active || typeof window === 'undefined') return;
 
-    const previousCursor = document.body.style.cursor;
-    document.body.style.cursor = 'crosshair';
+      const previousCursor = document.body.style.cursor;
+      document.body.style.cursor = 'crosshair';
 
-    const onPointerMove = (e: PointerEvent) => {
-      const target = document.elementFromPoint(e.clientX, e.clientY);
-      updateHover(target);
-    };
+      const onPointerMove = (e: PointerEvent) => {
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        updateHover(target);
+      };
 
-    const onClick = (e: MouseEvent) => {
-      const target = e.target as Element | null;
-      if (target?.closest('[data-solid-dev-toolbar]')) return;
+      const onClick = (e: MouseEvent) => {
+        const target = e.target as Element | null;
+        if (target?.closest('[data-solid-dev-toolbar]')) return;
 
-      e.preventDefault();
-      e.stopPropagation();
-
-      const current = hovered();
-      if (current?.component) {
-        props.onSelect(current.component);
-      } else {
-        props.onCancel();
-      }
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        props.onCancel();
-      }
-    };
 
-    const onScrollOrResize = () => {
-      if (lastTarget) updateHover(lastTarget);
-    };
+        const current = hovered();
+        if (current?.component) {
+          props.onSelect(current.component);
+        } else {
+          props.onCancel();
+        }
+      };
 
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('click', onClick, { capture: true });
-    window.addEventListener('keydown', onKeyDown, { capture: true });
-    window.addEventListener('scroll', onScrollOrResize, { passive: true, capture: true });
-    window.addEventListener('resize', onScrollOrResize, { passive: true });
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          props.onCancel();
+        }
+      };
 
-    onCleanup(() => {
-      document.body.style.cursor = previousCursor;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('click', onClick, { capture: true });
-      window.removeEventListener('keydown', onKeyDown, { capture: true });
-      window.removeEventListener('scroll', onScrollOrResize, { capture: true });
-      window.removeEventListener('resize', onScrollOrResize);
-      setHovered(undefined);
-      lastTarget = null;
-    });
-  });
+      const onScrollOrResize = () => {
+        if (lastTarget) updateHover(lastTarget);
+      };
+
+      window.addEventListener('pointermove', onPointerMove, { passive: true });
+      window.addEventListener('click', onClick, { capture: true });
+      window.addEventListener('keydown', onKeyDown, { capture: true });
+      window.addEventListener('scroll', onScrollOrResize, {
+        passive: true,
+        capture: true,
+      });
+      window.addEventListener('resize', onScrollOrResize, { passive: true });
+
+      return () => {
+        document.body.style.cursor = previousCursor;
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('click', onClick, { capture: true });
+        window.removeEventListener('keydown', onKeyDown, { capture: true });
+        window.removeEventListener('scroll', onScrollOrResize, { capture: true });
+        window.removeEventListener('resize', onScrollOrResize);
+        setHovered(undefined);
+        lastTarget = null;
+      };
+    },
+  );
 
   return (
     <Show when={props.active && hovered()}>
