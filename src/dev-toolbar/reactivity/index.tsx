@@ -72,7 +72,14 @@ function NodeSummary(props: {
     <>
       <div data-solid-reactivity-card-head>
         <span data-solid-reactivity-kind={props.node.kind} />
-        <Text options={{ size: 'xs', weight: 'semibold', font: 'mono', wrap: 'nowrap' }}>
+        <Text
+          options={{
+            size: 'xs',
+            weight: 'semibold',
+            font: 'mono',
+            wrap: 'nowrap',
+          }}
+        >
           {props.node.name}
         </Text>
         {stateBadge(props.node)}
@@ -214,7 +221,11 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
   let lastLayout: GraphLayout | undefined;
   const layout = createMemo(() => {
     lastLayout = layoutGraph(
-      visibleNodes().map((node) => ({ id: node.id, name: node.name, kind: node.kind })),
+      visibleNodes().map((node) => ({
+        id: node.id,
+        name: node.name,
+        kind: node.kind,
+      })),
       visibleEdges(),
       lastLayout,
     );
@@ -324,7 +335,11 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
   // Another panel can ask for a node. Filters that would hide it are cleared,
   // and the request waits for a snapshot that contains the node.
   createEffect(
-    () => ({ request: props.focus, nodes: graph().nodes, visible: !!props.show }),
+    () => ({
+      request: props.focus,
+      nodes: graph().nodes,
+      visible: !!props.show,
+    }),
     ({ request, nodes, visible }) => {
       if (!request || !visible || request === appliedFocus) return;
       const id = reactiveNodeId(request.node);
@@ -425,7 +440,10 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
         width: NODE_WIDTH * current.k,
         height: NODE_HEIGHT * current.k,
       },
-      canvas: { width: viewport?.clientWidth ?? 0, height: viewport?.clientHeight ?? 0 },
+      canvas: {
+        width: viewport?.clientWidth ?? 0,
+        height: viewport?.clientHeight ?? 0,
+      },
       card: { width: HOVER_CARD_WIDTH, height: hoverCardHeight },
     });
     return { node, placement };
@@ -464,7 +482,13 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                     data-off={hiddenKinds().includes(kind.value) ? '' : undefined}
                     onClick={() => toggleKind(kind.value)}
                   >
-                    <Text options={{ size: 'xs', weight: 'semibold', wrap: 'nowrap' }}>
+                    <Text
+                      options={{
+                        size: 'xs',
+                        weight: 'semibold',
+                        wrap: 'nowrap',
+                      }}
+                    >
                       {kind.label}
                     </Text>
                   </button>
@@ -718,7 +742,13 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                                     onClick={() => setSelected(id)}
                                   >
                                     <span data-solid-reactivity-kind={source().kind} />
-                                    <Text options={{ size: 'xs', font: 'mono', wrap: 'nowrap' }}>
+                                    <Text
+                                      options={{
+                                        size: 'xs',
+                                        font: 'mono',
+                                        wrap: 'nowrap',
+                                      }}
+                                    >
                                       {source().name}
                                     </Text>
                                   </button>
@@ -748,7 +778,13 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                                     onClick={() => setSelected(id)}
                                   >
                                     <span data-solid-reactivity-kind={observer().kind} />
-                                    <Text options={{ size: 'xs', font: 'mono', wrap: 'nowrap' }}>
+                                    <Text
+                                      options={{
+                                        size: 'xs',
+                                        font: 'mono',
+                                        wrap: 'nowrap',
+                                      }}
+                                    >
                                       {observer().name}
                                     </Text>
                                   </button>
