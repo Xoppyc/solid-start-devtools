@@ -697,4 +697,3 @@ export function InspectIcon(props: JSX.IntrinsicElements['svg'] & { title: strin
     </svg>
   );
 }
-
