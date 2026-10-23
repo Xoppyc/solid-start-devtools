@@ -77,11 +77,11 @@ export function installElementTracking(): () => void {
   };
 
   originalCreateNS = Document.prototype.createElementNS;
-  Document.prototype.createElementNS = function (
-    this: Document,
-    ...args: Parameters<typeof Document.prototype.createElementNS>
-  ): Element {
-    const el = originalCreateNS!.apply(this, args);
+  Document.prototype.createElementNS = function (this: Document, ...args: [any, any, any?]): any {
+    const el = originalCreateNS!.apply(
+      this,
+      args as Parameters<typeof Document.prototype.createElementNS>,
+    );
     const owner = getOwner();
     const comp = findComponentOwner(owner as RawNode | null | undefined);
     if (comp && el) {

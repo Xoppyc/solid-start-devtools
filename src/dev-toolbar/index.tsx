@@ -21,6 +21,7 @@ import {
   ErrorIcon,
   FunctionIcon,
   GraphIcon,
+  InspectIcon,
   IssueIcon,
   MinimizeIcon,
   SolidIcon,
@@ -28,7 +29,10 @@ import {
   TreeIcon,
 } from './icons.js';
 import { AsyncHistory, startAsyncCapture, type AsyncRecord } from './async/tracker.js';
+import { installElementTracking, type InspectedComponent } from './inspector/lookup.js';
+import { InspectorOverlay } from './inspector/overlay.js';
 import { addIssues, captureIssues, type IssueEntry } from './issues/tracker.js';
+import { openInEditor } from './open-in-editor.js';
 import { CopyReportButton } from './report/CopyReportButton.js';
 import { pageRoute } from './report/markdown.js';
 import { excludeOwner, includeOwner } from './ownership/registry.js';
@@ -126,6 +130,23 @@ export function DevToolbar(props: DevToolbarProps) {
   const [tab, setTab] = createSignal<Tab>('fn');
   const [height, setHeight] = createSignal(DEFAULT_HEIGHT);
   const [route, setRoute] = createSignal('');
+  const [inspecting, setInspecting] = createSignal(false);
+  const [selectedComponent, setSelectedComponent] = createSignal<InspectedComponent | undefined>();
+
+  function toggleInspect() {
+    setInspecting((current) => !current);
+  }
+
+  function selectComponent(comp: InspectedComponent) {
+    setInspecting(false);
+    setSelectedComponent(comp);
+    setOwnershipFocus({ owner: comp.owner });
+    show('own');
+  }
+
+  function clearComponentFunnel() {
+    setSelectedComponent(undefined);
+  }
 
   // Writes are batched, so a signal read right after its setter still returns
   // the old value. The caller passes what it just changed.
@@ -212,9 +233,19 @@ export function DevToolbar(props: DevToolbarProps) {
   }
 
   onSettled(() => {
+    installElementTracking();
+  });
+
+  onSettled(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // `code`, because Alt changes the character `key` reports on macOS.
-      if (!event.altKey || !event.shiftKey || event.code !== 'KeyD') return;
+      if (!event.altKey || !event.shiftKey) return;
+      if (event.code === 'KeyC') {
+        event.preventDefault();
+        toggleInspect();
+        return;
+      }
+      if (event.code !== 'KeyD') return;
       event.preventDefault();
       if (open()) close();
       else show(tab());
@@ -407,8 +438,45 @@ export function DevToolbar(props: DevToolbarProps) {
               <span data-solid-dev-toolbar-route title="Current route">
                 {route()}
               </span>
+              <Show when={selectedComponent()}>
+                {(comp) => (
+                  <div data-solid-dev-toolbar-funnel>
+                    <span data-solid-dev-toolbar-funnel-label>Inspecting</span>
+                    <span data-solid-dev-toolbar-funnel-name>{comp().name}</span>
+                    <Show when={comp().location}>
+                      {(loc) => (
+                        <button
+                          type="button"
+                          data-solid-dev-toolbar-funnel-action
+                          title={`Open ${loc()} in editor`}
+                          onClick={() => openInEditor(loc())}
+                        >
+                          Open in editor
+                        </button>
+                      )}
+                    </Show>
+                    <button
+                      type="button"
+                      data-solid-dev-toolbar-funnel-clear
+                      title="Clear component funnel"
+                      aria-label="Clear component funnel"
+                      onClick={clearComponentFunnel}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </Show>
               <div data-solid-dev-toolbar-spacer />
               <CopyReportButton label="the whole session" report={copySession} />
+              <IconButton
+                onClick={toggleInspect}
+                data-active={inspecting() ? '' : undefined}
+                aria-label="Inspect element (Alt+Shift+C)"
+                title="Inspect element (Alt+Shift+C)"
+              >
+                <InspectIcon title="Inspect element (Alt+Shift+C)" />
+              </IconButton>
               <IconButton onClick={close}>
                 <MinimizeIcon title="Close Start Devtools" />
               </IconButton>
@@ -513,6 +581,7 @@ export function DevToolbar(props: DevToolbarProps) {
                 <ReactivityViewer
                   show={visible('rx')}
                   focus={graphFocus()}
+                  componentFilter={selectedComponent()?.name}
                   onViewOwner={(owner) => {
                     setOwnershipFocus({ owner });
                     show('own');
@@ -542,6 +611,11 @@ export function DevToolbar(props: DevToolbarProps) {
             </div>
           </div>
         </div>
+        <InspectorOverlay
+          active={inspecting()}
+          onSelect={selectComponent}
+          onCancel={() => setInspecting(false)}
+        />
       </Portal>
       <Errored
         fallback={(error) => {

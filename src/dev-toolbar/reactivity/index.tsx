@@ -131,6 +131,8 @@ export interface ReactivityViewerProps {
   focus?: { node: object };
   /** Opens the owner of a node in the ownership tree. */
   onViewOwner?: (owner: object) => void;
+  /** Filters nodes to those owned by or under a specific component name. */
+  componentFilter?: string;
 }
 
 export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Element {
@@ -186,8 +188,12 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
   const visibleNodes = createMemo(() => {
     const search = query().trim().toLowerCase();
     const hidden = hiddenKinds();
+    const filter = props.componentFilter?.replace(/^<|>$/g, '').trim().toLowerCase();
     return graph().nodes.filter((node) => {
       if (hidden.includes(node.kind)) return false;
+      if (filter && !node.ownerPath.some((p) => p.replace(/^<|>$/g, '').toLowerCase() === filter)) {
+        return false;
+      }
       if (!search) return true;
       return (
         node.name.toLowerCase().includes(search) ||

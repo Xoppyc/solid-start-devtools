@@ -142,9 +142,7 @@ export function InspectorOverlay(props: InspectorOverlayProps): JSX.Element {
               >
                 <span data-solid-inspector-badge-name>{state().name}</span>
                 <Show when={state().location}>
-                  {(loc) => (
-                    <span data-solid-inspector-badge-loc>{formatLocation(loc())}</span>
-                  )}
+                  {(loc) => <span data-solid-inspector-badge-loc>{formatLocation(loc())}</span>}
                 </Show>
                 <span data-solid-inspector-badge-size>
                   {`${Math.round(rect().width)} × ${Math.round(rect().height)}`}
