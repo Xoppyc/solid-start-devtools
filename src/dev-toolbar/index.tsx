@@ -126,7 +126,10 @@ export function DevToolbar(props: DevToolbarProps) {
     setInspecting(false);
     setSelectedComponent(comp);
     setOwnershipFocus({ owner: comp.owner });
-    show('own');
+    if (!open()) {
+      setOpen(true);
+      persist({ open: true });
+    }
   }
 
   function clearComponentFunnel() {
@@ -379,7 +382,17 @@ export function DevToolbar(props: DevToolbarProps) {
                 {(comp) => (
                   <div data-solid-dev-toolbar-funnel>
                     <span data-solid-dev-toolbar-funnel-label>Inspecting</span>
-                    <span data-solid-dev-toolbar-funnel-name>{comp().name}</span>
+                    <button
+                      type="button"
+                      data-solid-dev-toolbar-funnel-name
+                      title={`View ${comp().name} in ownership tree`}
+                      onClick={() => {
+                        setOwnershipFocus({ owner: comp().owner });
+                        show('own');
+                      }}
+                    >
+                      {comp().name}
+                    </button>
                     <Show when={comp().location}>
                       {(loc) => (
                         <button
