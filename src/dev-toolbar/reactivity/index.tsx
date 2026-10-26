@@ -127,8 +127,17 @@ export interface ReactivityViewerProps {
   focus?: { node: object };
   /** Opens the owner of a node in the ownership tree. */
   onViewOwner?: (owner: object) => void;
+  /** Filters nodes to those owned by or under a specific component owner instance. */
+  ownerFilter?: object;
   /** Filters nodes to those owned by or under a specific component name. */
   componentFilter?: string;
+}
+
+function isDescendantOf(owner: object | undefined, target: object): boolean {
+  for (let cur = owner as Record<string, any> | null | undefined; cur; cur = cur._parent) {
+    if (cur === target) return true;
+  }
+  return false;
 }
 
 export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Element {
@@ -184,10 +193,16 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
   const visibleNodes = createMemo(() => {
     const search = query().trim().toLowerCase();
     const hidden = hiddenKinds();
-    const filter = props.componentFilter?.replace(/^<|>$/g, '').trim().toLowerCase();
+    const ownerFilter = props.ownerFilter;
+    const nameFilter = props.componentFilter?.replace(/^<|>$/g, '').trim().toLowerCase();
     return graph().nodes.filter((node) => {
       if (hidden.includes(node.kind)) return false;
-      if (filter && !node.ownerPath.some((p) => p.replace(/^<|>$/g, '').toLowerCase() === filter)) {
+      if (ownerFilter) {
+        if (!isDescendantOf(node.owner, ownerFilter)) return false;
+      } else if (
+        nameFilter &&
+        !node.ownerPath.some((p) => p.replace(/^<|>$/g, '').toLowerCase() === nameFilter)
+      ) {
         return false;
       }
       if (!search) return true;

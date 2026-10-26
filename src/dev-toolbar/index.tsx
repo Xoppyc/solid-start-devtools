@@ -480,6 +480,7 @@ export function DevToolbar(props: DevToolbarProps) {
                 <ReactivityViewer
                   show={visible('rx')}
                   focus={graphFocus()}
+                  ownerFilter={selectedComponent()?.owner}
                   componentFilter={selectedComponent()?.name}
                   onViewOwner={(owner) => {
                     setOwnershipFocus({ owner });
