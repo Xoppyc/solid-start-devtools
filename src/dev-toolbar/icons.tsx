@@ -682,6 +682,28 @@ export function MinimizeIcon(props: JSX.IntrinsicElements['svg'] & { title: stri
   );
 }
 
+export function HighlightUpdatesIcon(
+  props: JSX.IntrinsicElements['svg'] & { title: string },
+): JSX.Element {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      {...props}
+    >
+      <title>{props.title}</title>
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.6"
+        d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
+      />
+    </svg>
+  );
+}
+
 export function CopyIcon(props: JSX.IntrinsicElements['svg'] & { title: string }): JSX.Element {
   return (
     <svg

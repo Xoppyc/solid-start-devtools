@@ -16,7 +16,16 @@ import version from '../version.js';
 import IconButton from '../ui/IconButton.js';
 import { type ServerFunctionInstance, ServerFunctionViewer } from './functions/index.js';
 import { captureServerFunctionCall } from './functions/tracker.js';
-import { ErrorIcon, FunctionIcon, GraphIcon, MinimizeIcon, SolidIcon, TreeIcon } from './icons.js';
+import {
+  ErrorIcon,
+  FunctionIcon,
+  GraphIcon,
+  HighlightUpdatesIcon,
+  MinimizeIcon,
+  SolidIcon,
+  TreeIcon,
+} from './icons.js';
+import { HighlightUpdatesOverlay } from './highlight-updates/overlay.js';
 import { excludeOwner, includeOwner } from './ownership/registry.js';
 import { excludeReactiveOwner, includeReactiveOwner } from './reactivity/registry.js';
 import './index.css';
@@ -46,6 +55,7 @@ interface DockState {
   open: boolean;
   tab: Tab;
   height: number;
+  highlightUpdates?: boolean;
 }
 
 function readDockState(): Partial<DockState> {
@@ -117,6 +127,7 @@ export function DevToolbar(props: DevToolbarProps) {
   const [open, setOpen] = createSignal(false);
   const [tab, setTab] = createSignal<Tab>('fn');
   const [height, setHeight] = createSignal(DEFAULT_HEIGHT);
+  const [highlightUpdates, setHighlightUpdates] = createSignal(false);
   const [route, setRoute] = createSignal('');
   // The dock keeps the height the user chose, and shows at most 90% of the
   // window, so a smaller window shrinks it without losing that choice.
@@ -129,7 +140,13 @@ export function DevToolbar(props: DevToolbarProps) {
   // Writes are batched, so a signal read right after its setter still returns
   // the old value. The caller passes what it just changed.
   function persist(next: Partial<DockState>) {
-    writeDockState({ open: open(), tab: tab(), height: height(), ...next });
+    writeDockState({
+      open: open(),
+      tab: tab(),
+      height: height(),
+      highlightUpdates: highlightUpdates(),
+      ...next,
+    });
   }
 
   function show(value: Tab) {
@@ -165,6 +182,7 @@ export function DevToolbar(props: DevToolbarProps) {
     const saved = readDockState();
     if (TABS.some((entry) => entry.value === saved.tab)) setTab(saved.tab!);
     if (typeof saved.height === 'number') setHeight(clampHeight(saved.height));
+    if (typeof saved.highlightUpdates === 'boolean') setHighlightUpdates(saved.highlightUpdates);
     if (saved.open) setOpen(true);
 
     const updateMaxHeight = () => setMaxHeight(window.innerHeight * 0.9);
@@ -236,11 +254,21 @@ export function DevToolbar(props: DevToolbarProps) {
   onSettled(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // `code`, because Alt changes the character `key` reports on macOS.
-      if (!event.altKey || !event.shiftKey || event.code !== 'KeyD') return;
+      if (!event.altKey || !event.shiftKey) return;
       if (event.repeat || isEditable(event.composedPath()[0] ?? null)) return;
-      event.preventDefault();
-      if (open()) close();
-      else openAndFocus();
+
+      if (event.code === 'KeyD') {
+        event.preventDefault();
+        if (open()) close();
+        else openAndFocus();
+      } else if (event.code === 'KeyH') {
+        event.preventDefault();
+        setHighlightUpdates((current) => {
+          const next = !current;
+          persist({ highlightUpdates: next });
+          return next;
+        });
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -389,6 +417,21 @@ export function DevToolbar(props: DevToolbarProps) {
                 {route()}
               </span>
               <div data-solid-dev-toolbar-spacer />
+              <IconButton
+                title="Highlight updates (Alt+Shift+H)"
+                aria-label="Highlight updates (Alt+Shift+H)"
+                aria-pressed={highlightUpdates() ? 'true' : 'false'}
+                data-active={highlightUpdates() ? '' : undefined}
+                onClick={() => {
+                  setHighlightUpdates((current) => {
+                    const next = !current;
+                    persist({ highlightUpdates: next });
+                    return next;
+                  });
+                }}
+              >
+                <HighlightUpdatesIcon title="Highlight updates (Alt+Shift+H)" />
+              </IconButton>
               <IconButton onClick={close}>
                 <MinimizeIcon title="Close Start Devtools" />
               </IconButton>
@@ -478,6 +521,7 @@ export function DevToolbar(props: DevToolbarProps) {
             </div>
           </div>
         </div>
+        <HighlightUpdatesOverlay active={highlightUpdates()} />
       </Portal>
       <Errored
         fallback={(error) => {
