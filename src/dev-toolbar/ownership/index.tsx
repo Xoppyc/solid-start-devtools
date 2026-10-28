@@ -98,25 +98,27 @@ function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
   return (
     <div data-solid-ownership-signal-block>
       <div data-solid-ownership-signal>
-        <Show when={isComplex()}>
-          <button
-            type="button"
-            data-solid-ownership-signal-chevron
-            data-expanded={expanded() ? 'true' : undefined}
-            onClick={() => setExpanded((v) => !v)}
-            aria-label={expanded() ? 'Collapse value' : 'Expand value'}
-          />
-        </Show>
-        <Text
-          options={{
-            size: 'xs',
-            weight: 'semibold',
-            font: 'mono',
-            wrap: 'nowrap',
-          }}
-        >
-          {props.signal.name}
-        </Text>
+        <span data-solid-ownership-signal-name>
+          <Show when={isComplex()}>
+            <button
+              type="button"
+              data-solid-ownership-signal-chevron
+              data-expanded={expanded() ? 'true' : undefined}
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded() ? 'Collapse value' : 'Expand value'}
+            />
+          </Show>
+          <Text
+            options={{
+              size: 'xs',
+              weight: 'semibold',
+              font: 'mono',
+              wrap: 'nowrap',
+            }}
+          >
+            {props.signal.name}
+          </Text>
+        </span>
         <Show
           when={editing()}
           fallback={

@@ -501,7 +501,8 @@
   height: 0.875rem;
 }
 
-[data-solid-ownership-scope-name] {
+[data-solid-ownership-scope-name],
+[data-solid-ownership-signal-name] {
   display: inline-flex;
   align-items: center;
 
@@ -511,12 +512,14 @@
   overflow: hidden;
 }
 
-[data-solid-ownership-scope-name] > [data-solid-text-size] {
+[data-solid-ownership-scope-name] > [data-solid-text-size],
+[data-solid-ownership-signal-name] > [data-solid-text-size] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-[data-solid-ownership-signal] > [data-solid-text-size]:first-child {
+[data-solid-ownership-signal] > [data-solid-text-size]:first-child,
+[data-solid-ownership-signal] > [data-solid-ownership-signal-name] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
