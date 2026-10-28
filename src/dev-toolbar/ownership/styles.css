@@ -324,6 +324,56 @@
   gap: 0.125rem;
 }
 
+[data-solid-ownership-signal-block] {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+[data-solid-ownership-signal-chevron] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--start-dt-text-muted);
+  cursor: pointer;
+}
+
+[data-solid-ownership-signal-chevron]::before {
+  content: '';
+
+  width: 0.3125rem;
+  height: 0.3125rem;
+
+  border-right: 1.5px currentColor solid;
+  border-bottom: 1.5px currentColor solid;
+
+  transform: rotate(-45deg);
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-solid-ownership-signal-chevron][data-expanded]::before {
+  transform: rotate(45deg);
+}
+
+[data-solid-ownership-signal-tree] {
+  padding: 0.25rem 0.5rem;
+  margin-top: 0.25rem;
+  margin-left: 0.875rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--start-dt-border-soft);
+  background: var(--start-dt-bg);
+  max-height: 14rem;
+  overflow: auto;
+}
+
 [data-solid-ownership-signal] {
   display: grid;
   grid-template-columns: minmax(4rem, 40%) 1fr auto;
@@ -341,6 +391,78 @@
 }
 
 /* The action stays out of the way until the row is pointed at or focused. */
+[data-solid-ownership-signal-actions] {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+[data-solid-ownership-edit-signal] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0.125rem;
+
+  border: none;
+  border-radius: 0.25rem;
+  background: none;
+  color: var(--start-dt-text-muted);
+
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 150ms ease-out,
+    color 150ms ease-out;
+}
+
+[data-solid-ownership-signal]:hover [data-solid-ownership-edit-signal],
+[data-solid-ownership-edit-signal]:focus-visible {
+  opacity: 1;
+}
+
+[data-solid-ownership-edit-signal]:hover {
+  color: var(--start-dt-accent);
+  background: var(--start-dt-accent-soft);
+}
+
+[data-solid-ownership-signal] [data-solid-ownership-edit-signal] svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+[data-solid-ownership-signal-input] {
+  flex: 1;
+  min-width: 3.5rem;
+  max-width: 12rem;
+  padding: 0.0625rem 0.25rem;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--start-dt-accent);
+  background: var(--start-dt-bg);
+  color: var(--start-dt-text);
+  outline: none;
+}
+
+[data-solid-ownership-toggle-btn] {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.25rem;
+  border: 1px solid var(--start-dt-border-soft, transparent);
+  border-radius: 0.25rem;
+  background: var(--start-dt-surface, transparent);
+  color: var(--start-dt-text);
+  cursor: pointer;
+  transition: border-color 150ms ease-out;
+}
+
+[data-solid-ownership-toggle-btn]:hover {
+  border-color: var(--start-dt-accent);
+}
+
 [data-solid-ownership-view-graph] {
   display: inline-flex;
   align-items: center;

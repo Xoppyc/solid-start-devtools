@@ -1,9 +1,18 @@
 import type { JSX } from '@solidjs/web';
-import { createMemo, For, Show } from 'solid-js';
+import { createMemo, createSignal, For, Show } from 'solid-js';
 import { Badge } from '../../ui/Badge.js';
-import { TreeBranch, TreeKey, TreeLeaf, TreeMark, ValueToken } from '../../ui/ValueTree.js';
+import {
+  TreeBranch,
+  TreeKey,
+  TreeLeaf,
+  TreeMark,
+  ValueToken,
+  type ValueTokenKind,
+} from '../../ui/ValueTree.js';
+import { EditIcon } from '../icons.js';
 import { formatValue, typeName } from './format.js';
 import { containerEntries, entryCount, ownEntries } from './value-entries.js';
+import { parseValueInput } from './value-editor.js';
 
 function LinkIcon(props: { title: string }): JSX.Element {
   return (
@@ -18,6 +27,95 @@ function LinkIcon(props: { title: string }): JSX.Element {
   );
 }
 
+interface EditableValueProps {
+  value: string | number | boolean | bigint | null | undefined;
+  kind?: ValueTokenKind;
+  path: readonly (string | number)[];
+  onEdit: (path: readonly (string | number)[], nextValue: unknown) => void;
+}
+
+function EditableValue(props: EditableValueProps): JSX.Element {
+  const [editing, setEditing] = createSignal(false);
+  const [draft, setDraft] = createSignal(`${props.value ?? ''}`);
+
+  function startEditing(): void {
+    setDraft(`${props.value ?? ''}`);
+    setEditing(true);
+  }
+
+  function commit(): void {
+    if (!editing()) return;
+    setEditing(false);
+    const parsed = parseValueInput(draft(), props.value);
+    if (parsed !== props.value) {
+      props.onEdit(props.path, parsed);
+    }
+  }
+
+  if (typeof props.value === 'boolean') {
+    return (
+      <span data-solid-value-editable-container>
+        <button
+          type="button"
+          data-solid-value-toggle-btn
+          data-value={props.value ? 'true' : 'false'}
+          onClick={() => props.onEdit(props.path, !props.value)}
+          title="Click to toggle boolean"
+        >
+          <ValueToken kind="keyword" value={props.value} />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span data-solid-value-editable-container>
+      <Show
+        when={editing()}
+        fallback={
+          <span
+            data-solid-value-editable-trigger
+            onDblClick={startEditing}
+            title="Double-click to edit"
+          >
+            <ValueToken
+              kind={props.kind}
+              value={typeof props.value === 'string' ? `"${props.value}"` : props.value}
+            />
+            <button
+              type="button"
+              data-solid-value-edit-btn
+              onClick={startEditing}
+              aria-label="Edit value"
+              title="Edit value"
+            >
+              <EditIcon title="Edit value" />
+            </button>
+          </span>
+        }
+      >
+        <input
+          type="text"
+          data-solid-value-input
+          value={draft()}
+          onInput={(e) => setDraft(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          onBlur={commit}
+          ref={(el) => {
+            queueMicrotask(() => {
+              el.focus();
+              el.select();
+            });
+          }}
+        />
+      </Show>
+    </span>
+  );
+}
+
 export interface ValueInspectorProps {
   value: unknown;
   label?: JSX.Element;
@@ -25,6 +123,12 @@ export interface ValueInspectorProps {
   open?: boolean;
   /** Values already shown higher up this branch, used to catch cycles. */
   seen?: object[];
+  /** Whether leaf values can be edited interactively. */
+  editable?: boolean;
+  /** Callback fired when a leaf or nested property is updated. */
+  onEdit?: (path: readonly (string | number)[], nextValue: unknown) => void;
+  /** Path from the root inspected value down to this node. */
+  path?: readonly (string | number)[];
 }
 
 /**
@@ -38,7 +142,15 @@ export function ValueInspector(props: ValueInspectorProps): JSX.Element {
   // The tree is rebuilt when the value changes, so the reads below have to
   // happen inside a tracking scope.
   const tree = createMemo(() =>
-    renderValue(props.value, props.label, props.open, props.seen ?? []),
+    renderValue(
+      props.value,
+      props.label,
+      props.open,
+      props.seen ?? [],
+      props.editable,
+      props.onEdit,
+      props.path ?? [],
+    ),
   );
   return <>{tree()}</>;
 }
@@ -48,11 +160,16 @@ function renderValue(
   label: JSX.Element | undefined,
   open: boolean | undefined,
   seen: object[],
+  editable: boolean | undefined,
+  onEdit: ((path: readonly (string | number)[], nextValue: unknown) => void) | undefined,
+  path: readonly (string | number)[],
 ): JSX.Element {
   if (value === null) {
     return (
       <TreeLeaf label={label}>
-        <ValueToken kind="keyword" value="null" />
+        <Show when={editable && onEdit} fallback={<ValueToken kind="keyword" value="null" />}>
+          <EditableValue value={null} kind="keyword" path={path} onEdit={onEdit!} />
+        </Show>
       </TreeLeaf>
     );
   }
@@ -61,31 +178,50 @@ function renderValue(
     case 'undefined':
       return (
         <TreeLeaf label={label}>
-          <ValueToken kind="keyword" value="undefined" />
+          <Show
+            when={editable && onEdit}
+            fallback={<ValueToken kind="keyword" value="undefined" />}
+          >
+            <EditableValue value={undefined} kind="keyword" path={path} onEdit={onEdit!} />
+          </Show>
         </TreeLeaf>
       );
     case 'string':
       return (
         <TreeLeaf label={label}>
-          <ValueToken kind="string" value={`"${value}"`} />
+          <Show
+            when={editable && onEdit}
+            fallback={<ValueToken kind="string" value={`"${value}"`} />}
+          >
+            <EditableValue value={value} kind="string" path={path} onEdit={onEdit!} />
+          </Show>
         </TreeLeaf>
       );
     case 'number':
       return (
         <TreeLeaf label={label}>
-          <ValueToken kind="number" value={value} />
+          <Show when={editable && onEdit} fallback={<ValueToken kind="number" value={value} />}>
+            <EditableValue value={value} kind="number" path={path} onEdit={onEdit!} />
+          </Show>
         </TreeLeaf>
       );
     case 'bigint':
       return (
         <TreeLeaf label={label}>
-          <ValueToken kind="number" value={`${value}n`} />
+          <Show
+            when={editable && onEdit}
+            fallback={<ValueToken kind="number" value={`${value}n`} />}
+          >
+            <EditableValue value={value} kind="number" path={path} onEdit={onEdit!} />
+          </Show>
         </TreeLeaf>
       );
     case 'boolean':
       return (
         <TreeLeaf label={label}>
-          <ValueToken kind="keyword" value={value} />
+          <Show when={editable && onEdit} fallback={<ValueToken kind="keyword" value={value} />}>
+            <EditableValue value={value} kind="keyword" path={path} onEdit={onEdit!} />
+          </Show>
         </TreeLeaf>
       );
     case 'symbol':
@@ -177,6 +313,9 @@ function renderValue(
                     value={entry.value}
                     seen={nested}
                     label={<TreeKey value={entry.key} kind={entry.keyKind} />}
+                    editable={editable}
+                    onEdit={onEdit}
+                    path={[...path, entry.key]}
                   />
                 </Show>
               )}

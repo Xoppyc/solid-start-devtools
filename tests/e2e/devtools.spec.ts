@@ -500,6 +500,56 @@ test('copies reports for an agent', async ({ page, context }) => {
   expect(await clipboard()).toContain('- signal `count` = `0`');
 });
 
+test('allows live editing of signal state and updates DOM', async ({ page }) => {
+  await page.goto('/');
+
+  // 1. Live edit via Ownership panel
+  await openTab(page, 'Ownership');
+  await page.locator('[data-solid-ownership-label]').filter({ hasText: '<Counter>' }).click();
+
+  const countSignal = page
+    .locator('[data-solid-ownership-signal]')
+    .filter({ has: page.getByText('count', { exact: true }) });
+  await expect(countSignal).toContainText('0');
+
+  // Trigger inline edit
+  await countSignal.hover();
+  await countSignal.locator('[data-solid-ownership-edit-signal]').click();
+  const ownershipInput = countSignal.locator('[data-solid-ownership-signal-input]');
+  await expect(ownershipInput).toBeVisible();
+  await ownershipInput.fill('42');
+  await ownershipInput.press('Enter');
+
+  // Verify state update in devtools and live app DOM
+  await expect(countSignal).toContainText('42');
+  await expect(page.locator('#increment-count')).toHaveText('count 42 doubled 84');
+  expect(await page.evaluate(() => Reflect.get(window, '__doubled'))).toBe(84);
+
+  // 2. Live edit via Reactivity Graph detail pane
+  await openTab(page, 'Reactivity');
+  const countNode = page
+    .locator('[data-solid-reactivity-node]')
+    .filter({ hasText: /^count/ })
+    .first();
+  await countNode.click();
+
+  const detail = page.locator('[data-solid-reactivity-detail]');
+  await expect(detail).toContainText('Value');
+
+  const valueInputTrigger = detail.locator('[data-solid-value-edit-btn]');
+  await valueInputTrigger.click();
+
+  const reactivityInput = detail.locator('[data-solid-value-input]');
+  await expect(reactivityInput).toBeVisible();
+  await reactivityInput.fill('100');
+  await reactivityInput.press('Enter');
+
+  // Verify state update in devtools and live app DOM
+  await expect(detail.locator('[data-solid-reactivity-detail-value]')).toContainText('100');
+  await expect(page.locator('#increment-count')).toHaveText('count 100 doubled 200');
+  expect(await page.evaluate(() => Reflect.get(window, '__doubled'))).toBe(200);
+});
+
 test('mounts once and disposes', async ({ page }) => {
   await page.goto('/?mount');
 

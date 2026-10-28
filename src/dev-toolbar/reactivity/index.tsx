@@ -19,6 +19,7 @@ import {
   type GraphLayout,
 } from './layout.js';
 import { ValueInspector } from './ValueInspector.js';
+import { writeReactiveValue } from './value-editor.js';
 import {
   EMPTY_GRAPH,
   excludeReactiveOwner,
@@ -689,6 +690,13 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                           <ValueInspector
                             value={node().errored ? node().error : node().value}
                             open
+                            editable={
+                              !node().errored &&
+                              (node().kind === 'signal' || node().kind === 'store')
+                            }
+                            onEdit={(path, nextValue) => {
+                              writeReactiveValue(node().raw, path, nextValue);
+                            }}
                           />
                         </div>
                       </div>

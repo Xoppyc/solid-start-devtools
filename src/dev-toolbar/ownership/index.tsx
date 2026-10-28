@@ -4,10 +4,16 @@ import { Badge } from '../../ui/Badge.js';
 import IconButton from '../../ui/IconButton.js';
 import Placeholder from '../../ui/Placeholder.js';
 import { Text } from '../../ui/Text.js';
-import { CollapseIcon, ExpandIcon, EyeIcon, PauseIcon, PlayIcon } from '../icons.js';
+import { CollapseIcon, EditIcon, ExpandIcon, EyeIcon, PauseIcon, PlayIcon } from '../icons.js';
 import { CopyReportButton } from '../report/CopyReportButton.js';
 import { pageRoute } from '../report/markdown.js';
 import { ownerReport } from '../report/owner-report.js';
+import {
+  parseValueInput,
+  writeReactiveValue,
+  formatDraftValue,
+} from '../reactivity/value-editor.js';
+import { ValueInspector } from '../reactivity/ValueInspector.js';
 import { previewValue, typeName } from './format.js';
 import {
   excludeOwner,
@@ -59,6 +65,149 @@ export interface OwnershipViewerProps {
    * so asking for the same owner twice still moves the tree.
    */
   focus?: { owner: object };
+}
+
+interface OwnershipSignalRowProps {
+  signal: { name: string; value: unknown; node: object };
+  onViewInGraph?: (node: object) => void;
+}
+
+function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
+  const [editing, setEditing] = createSignal(false);
+  const [expanded, setExpanded] = createSignal(false);
+  const [draft, setDraft] = createSignal(formatDraftValue(props.signal.value));
+
+  const isComplex = createMemo(
+    () => typeof props.signal.value === 'object' && props.signal.value !== null,
+  );
+
+  function startEditing(): void {
+    setDraft(formatDraftValue(props.signal.value));
+    setEditing(true);
+  }
+
+  function commit(): void {
+    if (!editing()) return;
+    setEditing(false);
+    const parsed = parseValueInput(draft(), props.signal.value);
+    if (parsed !== props.signal.value) {
+      writeReactiveValue(props.signal.node, [], parsed);
+    }
+  }
+
+  return (
+    <div data-solid-ownership-signal-block>
+      <div data-solid-ownership-signal>
+        <Show when={isComplex()}>
+          <button
+            type="button"
+            data-solid-ownership-signal-chevron
+            data-expanded={expanded() ? 'true' : undefined}
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded() ? 'Collapse value' : 'Expand value'}
+          />
+        </Show>
+        <Text
+          options={{
+            size: 'xs',
+            weight: 'semibold',
+            font: 'mono',
+            wrap: 'nowrap',
+          }}
+        >
+          {props.signal.name}
+        </Text>
+        <Show
+          when={editing()}
+          fallback={
+            <>
+              <Show
+                when={typeof props.signal.value === 'boolean'}
+                fallback={
+                  <Text
+                    data-solid-ownership-signal-value
+                    options={{ size: 'xs', font: 'mono' }}
+                    onClick={() => {
+                      if (isComplex()) setExpanded((v) => !v);
+                    }}
+                    onDblClick={startEditing}
+                    title={
+                      isComplex()
+                        ? 'Click to expand / double-click to edit JSON'
+                        : 'Double-click to edit'
+                    }
+                  >
+                    {previewValue(props.signal.value)}
+                  </Text>
+                }
+              >
+                <button
+                  type="button"
+                  data-solid-ownership-toggle-btn
+                  data-value={props.signal.value ? 'true' : 'false'}
+                  onClick={() => writeReactiveValue(props.signal.node, [], !props.signal.value)}
+                  title="Click to toggle boolean"
+                >
+                  <Text options={{ size: 'xs', font: 'mono' }}>{`${props.signal.value}`}</Text>
+                </button>
+              </Show>
+              <div data-solid-ownership-signal-actions>
+                <button
+                  type="button"
+                  data-solid-ownership-edit-signal
+                  aria-label={`Edit ${props.signal.name}`}
+                  title={`Edit ${props.signal.name}`}
+                  onClick={startEditing}
+                >
+                  <EditIcon title={`Edit ${props.signal.name}`} />
+                </button>
+                <Show when={props.onViewInGraph}>
+                  <button
+                    type="button"
+                    data-solid-ownership-view-graph
+                    aria-label="View in graph"
+                    onClick={() => props.onViewInGraph?.(props.signal.node)}
+                  >
+                    <EyeIcon title="View in graph" />
+                  </button>
+                </Show>
+              </div>
+            </>
+          }
+        >
+          <input
+            type="text"
+            data-solid-ownership-signal-input
+            value={draft()}
+            onInput={(e) => setDraft(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            onBlur={commit}
+            ref={(el) => {
+              queueMicrotask(() => {
+                el.focus();
+                el.select();
+              });
+            }}
+          />
+        </Show>
+      </div>
+      <Show when={isComplex() && expanded()}>
+        <div data-solid-ownership-signal-tree>
+          <ValueInspector
+            value={props.signal.value}
+            open
+            editable
+            onEdit={(path, nextValue) => {
+              writeReactiveValue(props.signal.node, path, nextValue);
+            }}
+          />
+        </div>
+      </Show>
+    </div>
+  );
 }
 
 export default function OwnershipViewer(props: OwnershipViewerProps): JSX.Element {
@@ -438,34 +587,10 @@ export default function OwnershipViewer(props: OwnershipViewerProps): JSX.Elemen
                             }
                           >
                             {(signal) => (
-                              <div data-solid-ownership-signal>
-                                <Text
-                                  options={{
-                                    size: 'xs',
-                                    weight: 'semibold',
-                                    font: 'mono',
-                                    wrap: 'nowrap',
-                                  }}
-                                >
-                                  {signal.name}
-                                </Text>
-                                <Text
-                                  data-solid-ownership-signal-value
-                                  options={{ size: 'xs', font: 'mono' }}
-                                >
-                                  {previewValue(signal.value)}
-                                </Text>
-                                <Show when={props.onViewInGraph}>
-                                  <button
-                                    type="button"
-                                    data-solid-ownership-view-graph
-                                    aria-label="View in graph"
-                                    onClick={() => props.onViewInGraph?.(signal.node)}
-                                  >
-                                    <EyeIcon title="View in graph" />
-                                  </button>
-                                </Show>
-                              </div>
+                              <OwnershipSignalRow
+                                signal={signal}
+                                onViewInGraph={props.onViewInGraph}
+                              />
                             )}
                           </For>
                         </div>
