@@ -86,6 +86,25 @@ function applySvgColors(cloneSvg: SVGElement, sourceSvg: SVGElement, color: stri
 }
 
 /**
+ * Strips what would make the clone act like the original once it is in the
+ * document: duplicate ids, radio groups that would take the checked state from
+ * the original, and frames and media that would load or play a second time.
+ */
+function detachClone(clone: Element): void {
+  for (const element of [clone, ...Array.from(clone.querySelectorAll('*'))]) {
+    element.removeAttribute('id');
+    element.removeAttribute('name');
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'iframe') {
+      element.removeAttribute('srcdoc');
+      element.setAttribute('src', 'about:blank');
+    } else if (tag === 'video' || tag === 'audio') {
+      element.removeAttribute('autoplay');
+    }
+  }
+}
+
+/**
  * Creates an exact deep clone of the element that contains the updating node,
  * preserving all typography, line-height, text-transform, and layout metrics.
  *
@@ -113,11 +132,7 @@ export function createGhostClone(node: Node, count: number): HTMLElement | SVGEl
 
     const clone = svgRoot.cloneNode(true) as SVGElement;
 
-    clone.removeAttribute('id');
-    const elementsWithId = clone.querySelectorAll('[id]');
-    for (let i = 0; i < elementsWithId.length; i++) {
-      elementsWithId[i].removeAttribute('id');
-    }
+    detachClone(clone);
 
     clone.setAttribute('data-solid-flash-clone', '');
     clone.style.position = 'fixed';
@@ -148,11 +163,7 @@ export function createGhostClone(node: Node, count: number): HTMLElement | SVGEl
 
   const clone = hostElement.cloneNode(true) as HTMLElement;
 
-  clone.removeAttribute('id');
-  const elementsWithId = clone.querySelectorAll('[id]');
-  for (let i = 0; i < elementsWithId.length; i++) {
-    elementsWithId[i].removeAttribute('id');
-  }
+  detachClone(clone);
 
   clone.setAttribute('data-solid-flash-clone', '');
   clone.style.position = 'fixed';

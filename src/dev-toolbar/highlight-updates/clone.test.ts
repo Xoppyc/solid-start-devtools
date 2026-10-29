@@ -282,6 +282,29 @@ describe('createGhostClone', () => {
     expect(pathClone?.style.fill).toBe(colors.color);
   });
 
+  it('strips ids, names, frame sources and autoplay from the clone', () => {
+    const div = new MockElement('div');
+    div.setAttribute('id', 'panel');
+    const radio = new MockElement('input');
+    radio.setAttribute('name', 'choice');
+    const frame = new MockElement('iframe');
+    frame.setAttribute('src', 'https://example.com');
+    const video = new MockElement('video');
+    video.setAttribute('autoplay', '');
+    div.appendChild(radio);
+    div.appendChild(frame);
+    div.appendChild(video);
+
+    const clone = createGhostClone(div as unknown as Node, 1) as unknown as MockElement;
+    expect(clone.getAttribute('id')).toBeNull();
+    expect(clone.querySelector('input')?.getAttribute('name')).toBeNull();
+    expect(clone.querySelector('iframe')?.getAttribute('src')).toBe('about:blank');
+    expect(clone.querySelector('video')?.getAttribute('autoplay')).toBeNull();
+
+    expect(div.getAttribute('id')).toBe('panel');
+    expect(radio.getAttribute('name')).toBe('choice');
+  });
+
   it('colors text inside div clones with the same update color and keeps box outline/tint', () => {
     const div = new MockElement('div');
     const span = new MockElement('span');
