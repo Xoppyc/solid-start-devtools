@@ -6,6 +6,9 @@ import Placeholder from '../../ui/Placeholder.js';
 import { Text } from '../../ui/Text.js';
 import { CollapseIcon, ExpandIcon, EyeIcon, PauseIcon, PlayIcon } from '../icons.js';
 import { openInEditor } from '../open-in-editor.js';
+import { CopyReportButton } from '../report/CopyReportButton.js';
+import { pageRoute } from '../report/markdown.js';
+import { ownerReport } from '../report/owner-report.js';
 import { previewValue, typeName } from './format.js';
 import {
   excludeOwner,
@@ -347,6 +350,17 @@ export default function OwnershipViewer(props: OwnershipViewerProps): JSX.Elemen
                             <EyeIcon title="View in graph" />
                           </button>
                         </Show>
+                        <CopyReportButton
+                          label={`this ${node().kind}`}
+                          report={() =>
+                            ownerReport({
+                              node: node(),
+                              ancestry: ancestry(),
+                              nodes: byId(),
+                              route: pageRoute(),
+                            })
+                          }
+                        />
                       </div>
 
                       <Show when={node().location}>

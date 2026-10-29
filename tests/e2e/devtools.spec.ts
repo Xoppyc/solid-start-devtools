@@ -109,6 +109,63 @@ test('opens the dock from its pull tab', async ({ page }) => {
   await expect(dock).toBeVisible();
 });
 
+test('moves focus with the dock and leaves typing alone', async ({ page }) => {
+  await page.goto('/');
+  const dock = page.getByRole('region', { name: 'Start Devtools' });
+  const handle = page.getByRole('button', { name: 'Open Start Devtools' });
+
+  // Opening focuses the selected tab, and closing focuses the handle.
+  await handle.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('tab', { name: 'Server functions', exact: true })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Ownership', exact: true })).toBeFocused();
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await expect(dock).toBeHidden();
+  await expect(handle).toBeFocused();
+
+  // The shortcut does nothing inside a text field.
+  await page.evaluate(() => {
+    const input = document.createElement('input');
+    input.id = 'shortcut-input';
+    document.body.append(input);
+  });
+  await page.locator('#shortcut-input').focus();
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await expect(dock).toBeHidden();
+});
+
+test('fits the dock and the padding to the window', async ({ page }) => {
+  // A stored `null` falls back to the defaults.
+  await page.addInitScript(() => localStorage.setItem('solid-start-devtools:dock', 'null'));
+  await page.goto('/');
+  await page.evaluate(() => {
+    const style = document.createElement('style');
+    style.textContent = 'html { padding-bottom: 20px; }';
+    document.head.append(style);
+  });
+  const dock = page.getByRole('region', { name: 'Start Devtools' });
+  await page.getByRole('button', { name: 'Open Start Devtools' }).click();
+  await expect(dock).toBeVisible();
+
+  // The dock's height is added to the page's own padding.
+  const height = (await dock.boundingBox())!.height;
+  expect(await page.evaluate(() => document.documentElement.style.paddingBottom)).toBe(
+    `${height + 20}px`,
+  );
+
+  // A smaller window shrinks the dock to 90% of it, and the padding follows.
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: viewport.width, height: 300 });
+  await expect.poll(async () => (await dock.boundingBox())!.height).toBe(270);
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.style.paddingBottom))
+    .toBe('290px');
+
+  await page.getByRole('button', { name: 'Close Start Devtools' }).click();
+  expect(await page.evaluate(() => document.documentElement.style.paddingBottom)).toBe('');
+});
+
 test('captures client errors', async ({ page }) => {
   await page.goto('/');
   await page.locator('#throw-client-error').click();
@@ -389,6 +446,101 @@ test('maps the ownership tree', async ({ page }) => {
       .filter({ hasText: /^doubled/ })
       .first(),
   ).toHaveAttribute('data-solid-reactivity-node', 'selected');
+});
+
+test('copies reports for an agent', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
+  const copy = (name: string) =>
+    page.getByRole('button', { name: `Copy ${name} for an agent` }).click();
+
+  await page.goto('/');
+
+  // An error, with its mapped stack and the source around the frame.
+  await page.locator('#throw-client-error').click();
+  await copy('this error');
+  await expect.poll(clipboard).toContain('# Error in a Solid app');
+  const error = await clipboard();
+  expect(error).toContain('Error: client boom');
+  expect(error).toMatch(/`Broken` at `[^`]*app\.tsx:\d+:\d+`/);
+  expect(error).toContain("throw new Error('client boom');");
+  // The caret points at the expression that threw.
+  const lines = error.split('\n');
+  const marked = lines.findIndex((line) => line.includes("throw new Error('client boom');"));
+  expect(lines[marked + 1]!.indexOf('^')).toBe(lines[marked]!.indexOf('new'));
+
+  // The error replaced the app, so the other panels start from a fresh page.
+  await page.reload();
+
+  // A server-function call, with both bodies.
+  await page.locator('#emit-server-function-request').click();
+  await page.locator('#emit-server-function-response').click();
+  await openTab(page, 'Server functions');
+  await page.locator('[data-solid-functions-instances] [data-solid-select-option]').first().click();
+  await copy('this call');
+  await expect.poll(clipboard).toContain('# Server function call: `loadUser`');
+  expect(await clipboard()).toContain('- Response: `201`');
+
+  // A component, with its signals and where it sits.
+  await openTab(page, 'Ownership');
+  await page.locator('[data-solid-ownership-label]').filter({ hasText: '<Counter>' }).click();
+  await copy('this component');
+  await expect.poll(clipboard).toContain('# Solid component: `<Counter>`');
+  expect(await clipboard()).toContain('- `count` = `0`');
+
+  // A memo, with what it reads and what reads it.
+  await openTab(page, 'Reactivity');
+  await page
+    .locator('[data-solid-reactivity-node]')
+    .filter({ hasText: /^doubled/ })
+    .first()
+    .click();
+  await copy('this memo');
+  await expect.poll(clipboard).toContain('# Solid memo: `doubled`');
+  expect(await clipboard()).toContain('- signal `count` = `0`');
+});
+
+test('highlights fine-grained reactive updates with frequency colors', async ({ page }) => {
+  await page.goto('/');
+
+  // Open the devtools dock.
+  await page.getByRole('button', { name: 'Open Start Devtools' }).click();
+  const highlightButton = page.getByRole('button', {
+    name: 'Highlight updates (Alt+Shift+H)',
+  });
+  await expect(highlightButton).toBeVisible();
+
+  // 1. Enable highlight updates.
+  await highlightButton.click();
+  await expect(highlightButton).toHaveAttribute('data-active', '');
+
+  // 2. Trigger an update on the Counter component.
+  await page.locator('#increment-count').click();
+
+  // Ghost clone appears overlaying the exact text in-place.
+  const flash = page.locator('[data-solid-flash-clone]');
+  await expect(flash).toBeVisible();
+  await expect(flash).toContainText('count 1');
+  // First update is Solid light blue (#4483ec / rgb(68, 131, 236)).
+  const highlighted = flash.locator('span[style*="color"]');
+  expect(await highlighted.evaluate((el) => el.style.color)).toBe('rgb(68, 131, 236)');
+
+  // 3. Fast repeated update elevates color to purple (#9333ea / rgb(147, 51, 234)).
+  await page.locator('#increment-count').click();
+  await expect(flash).toContainText('count 2');
+  expect(await highlighted.evaluate((el) => el.style.color)).toBe('rgb(147, 51, 234)');
+
+  // 4. Toggle off with shortcut Alt+Shift+H.
+  await page.keyboard.press('Alt+Shift+H');
+  await expect(highlightButton).not.toHaveAttribute('data-active', '');
+
+  // 5. Toggle on again and verify persistence across reload.
+  await page.keyboard.press('Alt+Shift+H');
+  await expect(highlightButton).toHaveAttribute('data-active', '');
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Highlight updates (Alt+Shift+H)' }),
+  ).toHaveAttribute('data-active', '');
 });
 
 test('inspects elements and funnels components across panels', async ({ page }) => {

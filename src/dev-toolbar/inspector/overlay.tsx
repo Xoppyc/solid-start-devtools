@@ -67,6 +67,9 @@ export function InspectorOverlay(props: InspectorOverlayProps): JSX.Element {
 
       const onPointerMove = (e: PointerEvent) => {
         const target = document.elementFromPoint(e.clientX, e.clientY);
+        // The lookup walks the whole ownership tree, so it runs only when the
+        // pointer moves onto another element.
+        if (target === lastTarget) return;
         updateHover(target);
       };
 
