@@ -500,6 +500,49 @@ test('copies reports for an agent', async ({ page, context }) => {
   expect(await clipboard()).toContain('- signal `count` = `0`');
 });
 
+test('highlights fine-grained reactive updates with frequency colors', async ({ page }) => {
+  await page.goto('/');
+
+  // Open the devtools dock.
+  await page.getByRole('button', { name: 'Open Start Devtools' }).click();
+  const highlightButton = page.getByRole('button', {
+    name: 'Highlight updates (Alt+Shift+H)',
+  });
+  await expect(highlightButton).toBeVisible();
+
+  // 1. Enable highlight updates.
+  await highlightButton.click();
+  await expect(highlightButton).toHaveAttribute('data-active', '');
+
+  // 2. Trigger an update on the Counter component.
+  await page.locator('#increment-count').click();
+
+  // Ghost clone appears overlaying the exact text in-place.
+  const flash = page.locator('[data-solid-flash-clone]');
+  await expect(flash).toBeVisible();
+  await expect(flash).toContainText('count 1');
+  // First update is Solid light blue (#4483ec / rgb(68, 131, 236)).
+  const highlighted = flash.locator('span[style*="color"]');
+  expect(await highlighted.evaluate((el) => el.style.color)).toBe('rgb(68, 131, 236)');
+
+  // 3. Fast repeated update elevates color to purple (#9333ea / rgb(147, 51, 234)).
+  await page.locator('#increment-count').click();
+  await expect(flash).toContainText('count 2');
+  expect(await highlighted.evaluate((el) => el.style.color)).toBe('rgb(147, 51, 234)');
+
+  // 4. Toggle off with shortcut Alt+Shift+H.
+  await page.keyboard.press('Alt+Shift+H');
+  await expect(highlightButton).not.toHaveAttribute('data-active', '');
+
+  // 5. Toggle on again and verify persistence across reload.
+  await page.keyboard.press('Alt+Shift+H');
+  await expect(highlightButton).toHaveAttribute('data-active', '');
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Highlight updates (Alt+Shift+H)' }),
+  ).toHaveAttribute('data-active', '');
+});
+
 test('mounts once and disposes', async ({ page }) => {
   await page.goto('/?mount');
 
