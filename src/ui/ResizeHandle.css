@@ -4,20 +4,50 @@
   bottom: 0;
   left: -4px;
   width: 8px;
-  z-index: 2;
+  z-index: 10;
 
   cursor: ew-resize;
   touch-action: none;
 }
 
-[data-solid-resize-handle]:hover,
-[data-solid-resize-handle]:active,
-[data-solid-resize-handle][data-dragging] {
-  background: linear-gradient(
-    to right,
-    transparent 3px,
-    var(--start-dt-accent) 3px,
-    var(--start-dt-accent) 5px,
-    transparent 5px
-  );
+/* Hitbox: wide invisible target area centered on the border */
+[data-solid-resize-handle]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -2px;
+  width: 12px;
+}
+
+/* Visual line: centered on border, subtle hover, solid thicker line when dragging */
+[data-solid-resize-handle]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+
+  background: transparent;
+  transition:
+    background-color 150ms ease-out,
+    width 150ms ease-out,
+    left 150ms ease-out;
+  pointer-events: none;
+}
+
+/* Hover state: visible, semi-transparent accent line */
+[data-solid-resize-handle]:hover::after {
+  background: var(--start-dt-accent);
+  opacity: 0.6;
+}
+
+/* Active / Dragging state: thicker (3px), full solid opacity without glow */
+[data-solid-resize-handle]:active::after,
+[data-solid-resize-handle][data-dragging]::after {
+  left: 2.5px;
+  width: 3px;
+  background: var(--start-dt-accent);
+  opacity: 1;
 }
