@@ -1,0 +1,23 @@
+[data-solid-resize-handle] {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  z-index: 2;
+
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+[data-solid-resize-handle]:hover,
+[data-solid-resize-handle]:active,
+[data-solid-resize-handle][data-dragging] {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--start-dt-accent) 3px,
+    var(--start-dt-accent) 5px,
+    transparent 5px
+  );
+}
