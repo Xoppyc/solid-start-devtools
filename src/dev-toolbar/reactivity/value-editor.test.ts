@@ -1,10 +1,12 @@
-import { createMemo, createRoot, createSignal } from 'solid-js';
 import { describe, expect, it } from 'vitest';
 import {
+  canUpdatePath,
   formatDraftValue,
+  isJsonValue,
+  isPlainContainer,
+  isTextEditable,
   parseValueInput,
   updatePath,
-  writeReactiveValue,
 } from './value-editor.js';
 
 describe('formatDraftValue', () => {
@@ -14,6 +16,7 @@ describe('formatDraftValue', () => {
     expect(formatDraftValue(true)).toBe('true');
     expect(formatDraftValue(null)).toBe('null');
     expect(formatDraftValue(undefined)).toBe('undefined');
+    expect(formatDraftValue(5n)).toBe('5n');
   });
 
   it('formats objects and arrays as JSON', () => {
@@ -39,7 +42,9 @@ describe('parseValueInput', () => {
   it('parses boolean values correctly', () => {
     expect(parseValueInput('true', false)).toBe(true);
     expect(parseValueInput('false', true)).toBe(false);
-    expect(parseValueInput('1', false)).toBe(true);
+    // Anything else keeps the old value instead of turning into false.
+    expect(parseValueInput('1', false)).toBe(false);
+    expect(parseValueInput('yes', true)).toBe(true);
     expect(parseValueInput('true')).toBe(true);
     expect(parseValueInput('false')).toBe(false);
   });
@@ -55,6 +60,12 @@ describe('parseValueInput', () => {
     expect(parseValueInput('"hello world"', 'old')).toBe('hello world');
     expect(parseValueInput("'single quotes'", 'old')).toBe('single quotes');
     expect(parseValueInput('plain text', 'old')).toBe('plain text');
+  });
+
+  it('keeps a bigint a bigint', () => {
+    expect(parseValueInput('42', 1n)).toBe(42n);
+    expect(parseValueInput('-7n', 1n)).toBe(-7n);
+    expect(parseValueInput('1.5', 1n)).toBe(1n);
   });
 
   it('parses JSON objects and arrays', () => {
@@ -91,57 +102,53 @@ describe('updatePath', () => {
   });
 });
 
-describe('writeReactiveValue', () => {
-  it('returns false for null or undefined target', () => {
-    expect(writeReactiveValue(null as any, [], 10)).toBe(false);
-    expect(writeReactiveValue(undefined as any, [], 10)).toBe(false);
+describe('isPlainContainer', () => {
+  it('accepts arrays and plain objects only', () => {
+    expect(isPlainContainer([])).toBe(true);
+    expect(isPlainContainer({})).toBe(true);
+    expect(isPlainContainer(Object.create(null))).toBe(true);
+    expect(isPlainContainer(new Map())).toBe(false);
+    expect(isPlainContainer(new Set())).toBe(false);
+    expect(isPlainContainer(new Uint8Array(1))).toBe(false);
+    expect(isPlainContainer(new Date())).toBe(false);
+    expect(isPlainContainer(new (class Point {})())).toBe(false);
+    expect(isPlainContainer(null)).toBe(false);
+  });
+});
+
+describe('isJsonValue', () => {
+  it('accepts values a JSON round trip gives back equal', () => {
+    expect(isJsonValue({ a: [1, 'b', null, { c: true }] })).toBe(true);
   });
 
-  it('updates plain signal node value and notifies observers', () => {
-    createRoot((dispose) => {
-      const [count] = createSignal(10);
-      const double = createMemo(() => count() * 2);
-
-      expect(count()).toBe(10);
-      expect(double()).toBe(20);
-
-      const node: any = {
-        _value: 10,
-        _subs: null,
-      };
-
-      writeReactiveValue(node, [], 25);
-      expect(node._value).toBe(25);
-
-      dispose();
-    });
+  it('rejects values JSON would change', () => {
+    expect(isJsonValue({ m: new Map() })).toBe(false);
+    expect(isJsonValue({ d: new Date() })).toBe(false);
+    expect(isJsonValue({ f: () => 1 })).toBe(false);
+    expect(isJsonValue({ u: undefined })).toBe(false);
+    expect(isJsonValue({ n: Number.NaN })).toBe(false);
+    expect(isJsonValue({ b: 1n })).toBe(false);
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    expect(isJsonValue(cycle)).toBe(false);
   });
+});
 
-  it('updates nested object signal at path', () => {
-    const node: any = {
-      _value: { user: { name: 'Alice', active: false } },
-      _subs: null,
-    };
-
-    writeReactiveValue(node, ['user', 'active'], true);
-    expect(node._value.user.active).toBe(true);
-    expect(node._value.user.name).toBe('Alice');
+describe('isTextEditable', () => {
+  it('accepts primitives and JSON values', () => {
+    expect(isTextEditable('a')).toBe(true);
+    expect(isTextEditable(1n)).toBe(true);
+    expect(isTextEditable(undefined)).toBe(true);
+    expect(isTextEditable([1, 2])).toBe(true);
+    expect(isTextEditable(new Set([1]))).toBe(false);
+    expect(isTextEditable(Symbol('s'))).toBe(false);
   });
+});
 
-  it('updates store slot node backing data', () => {
-    const host = {
-      v: { title: 'Old Title', completed: false },
-      pb: null as any,
-    };
-    const slotNode: any = {
-      _host: host,
-      _key: 'title',
-      _value: 'Old Title',
-      _subs: null,
-    };
-
-    writeReactiveValue(slotNode, [], 'New Title');
-    expect(host.v.title).toBe('New Title');
-    expect(slotNode._value).toBe('New Title');
+describe('canUpdatePath', () => {
+  it('allows paths through plain containers only', () => {
+    expect(canUpdatePath({ a: [{ b: 1 }] }, ['a', 0, 'b'])).toBe(true);
+    expect(canUpdatePath({ m: new Map([['k', 1]]) }, ['m', '"k"'])).toBe(false);
+    expect(canUpdatePath(new Set([1]), [0])).toBe(false);
   });
 });

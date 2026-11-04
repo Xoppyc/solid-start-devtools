@@ -1,7 +1,62 @@
 import { createRoot, createSignal, DEV, flush, getOwner, runWithOwner } from 'solid-js';
 
 /**
- * Updates a nested property along `path` immutably.
+ * Whether a value is an array or an object made by `{}` or
+ * `Object.create(null)`. Only these can be copied with a spread without losing
+ * what they are, so only these are edited in place.
+ */
+export function isPlainContainer(value: unknown): value is Record<string | number, unknown> {
+  if (Array.isArray(value)) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Whether `JSON.stringify` and `JSON.parse` give back an equal value: plain
+ * objects and arrays holding only strings, finite numbers, booleans and null.
+ */
+export function isJsonValue(value: unknown, seen: object[] = []): boolean {
+  if (value === null) return true;
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return true;
+    case 'number':
+      return Number.isFinite(value);
+    case 'object':
+      break;
+    default:
+      return false;
+  }
+  if (!isPlainContainer(value) || seen.includes(value)) return false;
+  const nested = [...seen, value];
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key === 'symbol') return false;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !('value' in descriptor)) return false;
+    if (Array.isArray(value) && key === 'length') continue;
+    if (!isJsonValue(descriptor.value, nested)) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether every container `path` passes through is plain, so `updatePath` can
+ * copy it.
+ */
+export function canUpdatePath(target: unknown, path: readonly (string | number)[]): boolean {
+  let current = target;
+  for (const key of path) {
+    if (!isPlainContainer(current)) return false;
+    current = current[key];
+  }
+  return true;
+}
+
+/**
+ * Updates a nested property along `path` immutably. Every container on the
+ * path has to be plain, which `canUpdatePath` checks.
  */
 export function updatePath<T>(target: T, path: readonly (string | number)[], value: unknown): T {
   if (path.length === 0) return value as T;
@@ -17,12 +72,32 @@ export function updatePath<T>(target: T, path: readonly (string | number)[], val
 }
 
 /**
+ * Whether a value can be edited as text: a primitive other than a symbol, or
+ * a value that survives a JSON round trip.
+ */
+export function isTextEditable(value: unknown): boolean {
+  switch (typeof value) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'undefined':
+      return true;
+    case 'object':
+      return isJsonValue(value);
+    default:
+      return false;
+  }
+}
+
+/**
  * Formats a value for editing in an input field.
  */
 export function formatDraftValue(value: unknown): string {
   if (value === undefined) return 'undefined';
   if (value === null) return 'null';
   if (typeof value === 'string') return `"${value}"`;
+  if (typeof value === 'bigint') return `${value}n`;
   if (typeof value === 'object') {
     try {
       return JSON.stringify(value);
@@ -49,7 +124,14 @@ export function parseValueInput(raw: string, currentValue?: unknown): unknown {
     if (!Number.isNaN(num) && trimmed !== '') return num;
   }
   if (typeof currentValue === 'boolean') {
-    return trimmed === 'true' || trimmed === '1';
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
+    return currentValue;
+  }
+  if (typeof currentValue === 'bigint') {
+    const digits = trimmed.endsWith('n') ? trimmed.slice(0, -1) : trimmed;
+    if (/^-?\d+$/.test(digits)) return BigInt(digits);
+    return currentValue;
   }
   if (currentValue === null && trimmed === 'null') {
     return null;
@@ -124,25 +206,10 @@ class ReactiveWriter {
   ): boolean {
     if (!target || typeof target !== 'object') return false;
 
-    // Handle direct store proxy references ($TARGET / [Symbol(STORE_PROXY)]).
-    if (
-      '$TARGET' in target ||
-      (typeof Symbol === 'function' && Object.getOwnPropertySymbols(target).length > 0)
-    ) {
-      const targetShape = target['$TARGET'] ?? target;
-      if (targetShape && typeof targetShape === 'object' && 'v' in targetShape && targetShape.v) {
-        if (path.length === 0 && typeof nextValue === 'object' && nextValue !== null) {
-          Object.assign(targetShape.v, nextValue);
-        } else if (path.length > 0) {
-          let curr = targetShape.v;
-          for (let i = 0; i < path.length - 1; i++) {
-            curr = curr[path[i]];
-          }
-          curr[path[path.length - 1]] = nextValue;
-        }
-        return true;
-      }
-    }
+    // The bridge has to exist before anything is written, or a failed setup
+    // would leave the backing data changed with no subscriber told.
+    this.ensureBridge();
+    if (!this.setter || !this.bridgeNode) return false;
 
     const isStoreSlot = '_host' in target;
     if (isStoreSlot && target._host) {
@@ -152,19 +219,15 @@ class ReactiveWriter {
         if (target._host.pb) target._host.pb[key] = nextValue;
       } else {
         const rootVal = target._host.v ? target._host.v[key] : target._value;
+        if (!canUpdatePath(rootVal, path)) return false;
         const updated = updatePath(rootVal, path, nextValue);
         if (target._host.v) target._host.v[key] = updated;
         if (target._host.pb) target._host.pb[key] = updated;
         nextValue = updated;
       }
     } else if (path.length > 0) {
+      if (!canUpdatePath(target._value, path)) return false;
       nextValue = updatePath(target._value, path, nextValue);
-    }
-
-    this.ensureBridge();
-    if (!this.setter || !this.bridgeNode) {
-      target._value = nextValue;
-      return true;
     }
 
     const keys = new Set<string>([
@@ -220,6 +283,8 @@ const writer = new ReactiveWriter();
 
 /**
  * Writes a new value to a reactive signal or store node at the specified path.
+ * Returns false when the write did not reach the runtime: the bridge could not
+ * be set up, or the path passes through a container that is not plain.
  */
 export function writeReactiveValue(
   target: object,
