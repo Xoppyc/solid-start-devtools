@@ -1,5 +1,5 @@
 import { createMemo, createRoot, createSignal, createStore, DEV, flush, getOwner } from 'solid-js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { writeReactiveValue } from './value-editor.js';
 
 // These tests run against the browser dev build of solid-js (see
@@ -95,6 +95,44 @@ describe('writeReactiveValue', () => {
       expect(writeReactiveValue(sourceNamed(read, 'data'), ['m', '"k"'], 2)).toBe(false);
       expect(data().m).toBe(map);
       dispose();
+    });
+  });
+
+  describe('with a DEV.setSignal hook', () => {
+    const dev = DEV as unknown as { setSignal?: (node: object, value: unknown) => void };
+
+    afterEach(() => {
+      delete dev.setSignal;
+    });
+
+    it('writes through the hook and not the bridge', () => {
+      createRoot((dispose) => {
+        const [user] = createSignal({ name: 'Alice', active: false }, { name: 'user' });
+        const label = probe(() => `${user().name} ${user().active}`);
+        const node = sourceNamed(label, 'user');
+        const setSignal = vi.fn();
+        dev.setSignal = setSignal;
+
+        expect(writeReactiveValue(node, ['active'], true)).toBe(true);
+        expect(setSignal).toHaveBeenCalledWith(node, { name: 'Alice', active: true });
+        expect(label.read()).toBe('Alice false');
+        dispose();
+      });
+    });
+
+    it('passes a store slot the new value of its key', () => {
+      createRoot((dispose) => {
+        const [store] = createStore({ todos: [{ done: false }] });
+        const summary = probe(() => store.todos[0].done);
+        const slot = slotFor(summary, 'todos');
+        const setSignal = vi.fn();
+        dev.setSignal = setSignal;
+
+        expect(writeReactiveValue(slot, [0, 'done'], true)).toBe(true);
+        expect(setSignal).toHaveBeenCalledWith(slot, [{ done: true }]);
+        expect(store.todos[0].done).toBe(false);
+        dispose();
+      });
     });
   });
 });

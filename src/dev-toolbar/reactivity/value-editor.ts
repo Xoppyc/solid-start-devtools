@@ -173,7 +173,37 @@ export function parseValueInput(raw: string, currentValue?: unknown): unknown {
 }
 
 /**
- * Bridges external writes into Solid's internal reactivity scheduler.
+ * A write hook a solid-js dev build may offer on `DEV`: set a signal node, or
+ * the slot node of a store property, to a value and notify its subscribers.
+ * Proposed in solidjs/solid#4679 and not in any release yet.
+ */
+type SetSignalHook = (node: object, value: unknown) => void;
+
+function runtimeSetSignal(): SetSignalHook | undefined {
+  const hook = (DEV as { setSignal?: unknown } | undefined)?.setSignal;
+  return typeof hook === 'function' ? (hook as SetSignalHook) : undefined;
+}
+
+/**
+ * The value to write to `target` so that `path` inside it holds `nextValue`.
+ * For a store slot this is the new value of the slot's key. Undefined when
+ * the path passes through a container that is not plain.
+ */
+function resolveWrite(
+  target: Record<string, any>,
+  path: readonly (string | number)[],
+  nextValue: unknown,
+): { value: unknown } | undefined {
+  if (path.length === 0) return { value: nextValue };
+  const isStoreSlot = '_host' in target && target._host;
+  const current = isStoreSlot && target._host.v ? target._host.v[target._key] : target._value;
+  if (!canUpdatePath(current, path)) return undefined;
+  return { value: updatePath(current, path, nextValue) };
+}
+
+/**
+ * Bridges external writes into Solid's internal reactivity scheduler, for
+ * runtimes without the `DEV.setSignal` hook.
  *
  * In Solid 2.0, signal writes trigger subscriber notification and queue flush
  * via the internal `setSignal` function bound during `createSignal`. Devtools
@@ -181,6 +211,10 @@ export function parseValueInput(raw: string, currentValue?: unknown): unknown {
  * bridge signal node whose properties are forwarded to the inspected target node,
  * writes route through Solid's native setter and subscriber propagation without
  * requiring private module deep imports or reimplementing the internal heap.
+ *
+ * This depends on the private field names of the runtime's nodes, so a rename
+ * in solid-js breaks it. The tests in `value-editor.dev.test.ts` run it against
+ * the dev build to catch that when solid-js is updated.
  */
 class ReactiveWriter {
   private setter?: (value: unknown) => unknown;
@@ -199,35 +233,16 @@ class ReactiveWriter {
     });
   }
 
-  public write(
-    target: Record<string, any>,
-    path: readonly (string | number)[],
-    nextValue: unknown,
-  ): boolean {
-    if (!target || typeof target !== 'object') return false;
-
+  public write(target: Record<string, any>, nextValue: unknown): boolean {
     // The bridge has to exist before anything is written, or a failed setup
     // would leave the backing data changed with no subscriber told.
     this.ensureBridge();
     if (!this.setter || !this.bridgeNode) return false;
 
-    const isStoreSlot = '_host' in target;
-    if (isStoreSlot && target._host) {
+    if ('_host' in target && target._host) {
       const key = target._key;
-      if (path.length === 0) {
-        if (target._host.v) target._host.v[key] = nextValue;
-        if (target._host.pb) target._host.pb[key] = nextValue;
-      } else {
-        const rootVal = target._host.v ? target._host.v[key] : target._value;
-        if (!canUpdatePath(rootVal, path)) return false;
-        const updated = updatePath(rootVal, path, nextValue);
-        if (target._host.v) target._host.v[key] = updated;
-        if (target._host.pb) target._host.pb[key] = updated;
-        nextValue = updated;
-      }
-    } else if (path.length > 0) {
-      if (!canUpdatePath(target._value, path)) return false;
-      nextValue = updatePath(target._value, path, nextValue);
+      if (target._host.v) target._host.v[key] = nextValue;
+      if (target._host.pb) target._host.pb[key] = nextValue;
     }
 
     const keys = new Set<string>([
@@ -268,13 +283,6 @@ class ReactiveWriter {
     runWithOwner(null, () => {
       this.setter!(nextValue);
     });
-
-    try {
-      flush();
-    } catch {
-      // In browser microtask environments flush may already be pending.
-    }
-
     return true;
   }
 }
@@ -291,5 +299,23 @@ export function writeReactiveValue(
   path: readonly (string | number)[],
   nextValue: unknown,
 ): boolean {
-  return writer.write(target as Record<string, any>, path, nextValue);
+  if (!target || typeof target !== 'object') return false;
+  const node = target as Record<string, any>;
+  const write = resolveWrite(node, path, nextValue);
+  if (!write) return false;
+
+  // Prefer the runtime's own write hook; fall back to the bridge without it.
+  const setSignal = runtimeSetSignal();
+  if (setSignal) {
+    runWithOwner(null, () => setSignal(node, write.value));
+  } else if (!writer.write(node, write.value)) {
+    return false;
+  }
+
+  try {
+    flush();
+  } catch {
+    // In browser microtask environments flush may already be pending.
+  }
+  return true;
 }
