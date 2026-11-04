@@ -12,7 +12,9 @@ import {
 import { EditIcon } from '../icons.js';
 import { formatValue, typeName } from './format.js';
 import { containerEntries, entryCount, ownEntries } from './value-entries.js';
-import { parseValueInput } from './value-editor.js';
+import { createDraftEdit } from './draft-edit.js';
+import { DraftInput } from './DraftInput.js';
+import { formatDraftValue, isPlainContainer } from './value-editor.js';
 
 function LinkIcon(props: { title: string }): JSX.Element {
   return (
@@ -27,30 +29,23 @@ function LinkIcon(props: { title: string }): JSX.Element {
   );
 }
 
+/** Writes `nextValue` at `path`. Returns false when the app did not take it. */
+export type ValueEditHandler = (path: readonly (string | number)[], nextValue: unknown) => boolean;
+
 interface EditableValueProps {
   value: string | number | boolean | bigint | null | undefined;
   kind?: ValueTokenKind;
   path: readonly (string | number)[];
-  onEdit: (path: readonly (string | number)[], nextValue: unknown) => void;
+  onEdit: ValueEditHandler;
 }
 
+const FAILED_TITLE = 'The app did not take this edit';
+
 function EditableValue(props: EditableValueProps): JSX.Element {
-  const [editing, setEditing] = createSignal(false);
-  const [draft, setDraft] = createSignal(`${props.value ?? ''}`);
-
-  function startEditing(): void {
-    setDraft(`${props.value ?? ''}`);
-    setEditing(true);
-  }
-
-  function commit(): void {
-    if (!editing()) return;
-    setEditing(false);
-    const parsed = parseValueInput(draft(), props.value);
-    if (parsed !== props.value) {
-      props.onEdit(props.path, parsed);
-    }
-  }
+  const edit = createDraftEdit({
+    value: () => props.value,
+    write: (nextValue) => props.onEdit(props.path, nextValue),
+  });
 
   if (typeof props.value === 'boolean') {
     return (
@@ -59,8 +54,9 @@ function EditableValue(props: EditableValueProps): JSX.Element {
           type="button"
           data-solid-value-toggle-btn
           data-value={props.value ? 'true' : 'false'}
-          onClick={() => props.onEdit(props.path, !props.value)}
-          title="Click to toggle boolean"
+          data-solid-value-edit-failed={edit.failed() ? '' : undefined}
+          onClick={() => edit.write(!props.value)}
+          title={edit.failed() ? FAILED_TITLE : 'Click to toggle boolean'}
         >
           <ValueToken kind="keyword" value={props.value} />
         </button>
@@ -71,21 +67,19 @@ function EditableValue(props: EditableValueProps): JSX.Element {
   return (
     <span data-solid-value-editable-container>
       <Show
-        when={editing()}
+        when={edit.editing()}
         fallback={
           <span
             data-solid-value-editable-trigger
-            onDblClick={startEditing}
-            title="Double-click to edit"
+            data-solid-value-edit-failed={edit.failed() ? '' : undefined}
+            onDblClick={edit.start}
+            title={edit.failed() ? FAILED_TITLE : 'Double-click to edit'}
           >
-            <ValueToken
-              kind={props.kind}
-              value={typeof props.value === 'string' ? `"${props.value}"` : props.value}
-            />
+            <ValueToken kind={props.kind} value={formatDraftValue(props.value)} />
             <button
               type="button"
               data-solid-value-edit-btn
-              onClick={startEditing}
+              onClick={edit.start}
               aria-label="Edit value"
               title="Edit value"
             >
@@ -94,23 +88,7 @@ function EditableValue(props: EditableValueProps): JSX.Element {
           </span>
         }
       >
-        <input
-          type="text"
-          data-solid-value-input
-          value={draft()}
-          onInput={(e) => setDraft(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit();
-            if (e.key === 'Escape') setEditing(false);
-          }}
-          onBlur={commit}
-          ref={(el) => {
-            queueMicrotask(() => {
-              el.focus();
-              el.select();
-            });
-          }}
-        />
+        <DraftInput edit={edit} marker="data-solid-value-input" />
       </Show>
     </span>
   );
@@ -126,7 +104,7 @@ export interface ValueInspectorProps {
   /** Whether leaf values can be edited interactively. */
   editable?: boolean;
   /** Callback fired when a leaf or nested property is updated. */
-  onEdit?: (path: readonly (string | number)[], nextValue: unknown) => void;
+  onEdit?: ValueEditHandler;
   /** Path from the root inspected value down to this node. */
   path?: readonly (string | number)[];
 }
@@ -161,7 +139,7 @@ function renderValue(
   open: boolean | undefined,
   seen: object[],
   editable: boolean | undefined,
-  onEdit: ((path: readonly (string | number)[], nextValue: unknown) => void) | undefined,
+  onEdit: ValueEditHandler | undefined,
   path: readonly (string | number)[],
 ): JSX.Element {
   if (value === null) {
@@ -284,6 +262,10 @@ function renderValue(
   );
 
   const nested = [...seen, object];
+  // Edits copy each container on the path with a spread, which would turn a
+  // Map, a Set or a class instance into a plain object, so only plain
+  // containers pass editing down.
+  const editChildren = editable && isPlainContainer(object);
 
   return (
     <TreeBranch label={label} badges={badges} open={open} preview={formatValue(object)}>
@@ -313,7 +295,7 @@ function renderValue(
                     value={entry.value}
                     seen={nested}
                     label={<TreeKey value={entry.key} kind={entry.keyKind} />}
-                    editable={editable}
+                    editable={editChildren}
                     onEdit={onEdit}
                     path={[...path, entry.key]}
                   />

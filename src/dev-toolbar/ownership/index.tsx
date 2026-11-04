@@ -9,11 +9,9 @@ import { openInEditor } from '../open-in-editor.js';
 import { CopyReportButton } from '../report/CopyReportButton.js';
 import { pageRoute } from '../report/markdown.js';
 import { ownerReport } from '../report/owner-report.js';
-import {
-  parseValueInput,
-  writeReactiveValue,
-  formatDraftValue,
-} from '../reactivity/value-editor.js';
+import { createDraftEdit } from '../reactivity/draft-edit.js';
+import { DraftInput } from '../reactivity/DraftInput.js';
+import { isTextEditable, writeReactiveValue } from '../reactivity/value-editor.js';
 import { ValueInspector } from '../reactivity/ValueInspector.js';
 import { previewValue, typeName } from './format.js';
 import {
@@ -66,26 +64,23 @@ interface OwnershipSignalRowProps {
 }
 
 function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
-  const [editing, setEditing] = createSignal(false);
   const [expanded, setExpanded] = createSignal(false);
-  const [draft, setDraft] = createSignal(formatDraftValue(props.signal.value));
+  const edit = createDraftEdit({
+    value: () => props.signal.value,
+    write: (nextValue) => writeReactiveValue(props.signal.node, [], nextValue),
+  });
 
   const isComplex = createMemo(
     () => typeof props.signal.value === 'object' && props.signal.value !== null,
   );
+  // A Map, a Date or a class instance would come back from JSON as a plain
+  // object, so only values that survive the round trip are edited as text.
+  const textEditable = createMemo(() => isTextEditable(props.signal.value));
 
-  function startEditing(): void {
-    setDraft(formatDraftValue(props.signal.value));
-    setEditing(true);
-  }
-
-  function commit(): void {
-    if (!editing()) return;
-    setEditing(false);
-    const parsed = parseValueInput(draft(), props.signal.value);
-    if (parsed !== props.signal.value) {
-      writeReactiveValue(props.signal.node, [], parsed);
-    }
+  function valueTitle(): string {
+    if (edit.failed()) return 'The app did not take this edit';
+    if (!textEditable()) return isComplex() ? 'Click to expand' : '';
+    return isComplex() ? 'Click to expand / double-click to edit JSON' : 'Double-click to edit';
   }
 
   return (
@@ -113,7 +108,7 @@ function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
           </Text>
         </span>
         <Show
-          when={editing()}
+          when={edit.editing()}
           fallback={
             <>
               <Show
@@ -121,16 +116,15 @@ function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
                 fallback={
                   <Text
                     data-solid-ownership-signal-value
+                    data-solid-ownership-edit-failed={edit.failed() ? '' : undefined}
                     options={{ size: 'xs', font: 'mono' }}
                     onClick={() => {
                       if (isComplex()) setExpanded((v) => !v);
                     }}
-                    onDblClick={startEditing}
-                    title={
-                      isComplex()
-                        ? 'Click to expand / double-click to edit JSON'
-                        : 'Double-click to edit'
-                    }
+                    onDblClick={() => {
+                      if (textEditable()) edit.start();
+                    }}
+                    title={valueTitle()}
                   >
                     {previewValue(props.signal.value)}
                   </Text>
@@ -140,22 +134,25 @@ function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
                   type="button"
                   data-solid-ownership-toggle-btn
                   data-value={props.signal.value ? 'true' : 'false'}
-                  onClick={() => writeReactiveValue(props.signal.node, [], !props.signal.value)}
-                  title="Click to toggle boolean"
+                  data-solid-ownership-edit-failed={edit.failed() ? '' : undefined}
+                  onClick={() => edit.write(!props.signal.value)}
+                  title={edit.failed() ? valueTitle() : 'Click to toggle boolean'}
                 >
                   <Text options={{ size: 'xs', font: 'mono' }}>{`${props.signal.value}`}</Text>
                 </button>
               </Show>
               <div data-solid-ownership-signal-actions>
-                <button
-                  type="button"
-                  data-solid-ownership-edit-signal
-                  aria-label={`Edit ${props.signal.name}`}
-                  title={`Edit ${props.signal.name}`}
-                  onClick={startEditing}
-                >
-                  <EditIcon title={`Edit ${props.signal.name}`} />
-                </button>
+                <Show when={textEditable()}>
+                  <button
+                    type="button"
+                    data-solid-ownership-edit-signal
+                    aria-label={`Edit ${props.signal.name}`}
+                    title={`Edit ${props.signal.name}`}
+                    onClick={edit.start}
+                  >
+                    <EditIcon title={`Edit ${props.signal.name}`} />
+                  </button>
+                </Show>
                 <Show when={props.onViewInGraph}>
                   <button
                     type="button"
@@ -170,23 +167,7 @@ function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
             </>
           }
         >
-          <input
-            type="text"
-            data-solid-ownership-signal-input
-            value={draft()}
-            onInput={(e) => setDraft(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit();
-              if (e.key === 'Escape') setEditing(false);
-            }}
-            onBlur={commit}
-            ref={(el) => {
-              queueMicrotask(() => {
-                el.focus();
-                el.select();
-              });
-            }}
-          />
+          <DraftInput edit={edit} marker="data-solid-ownership-signal-input" />
         </Show>
       </div>
       <Show when={isComplex() && expanded()}>
@@ -195,9 +176,7 @@ function OwnershipSignalRow(props: OwnershipSignalRowProps): JSX.Element {
             value={props.signal.value}
             open
             editable
-            onEdit={(path, nextValue) => {
-              writeReactiveValue(props.signal.node, path, nextValue);
-            }}
+            onEdit={(path, nextValue) => writeReactiveValue(props.signal.node, path, nextValue)}
           />
         </div>
       </Show>

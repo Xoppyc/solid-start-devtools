@@ -741,9 +741,9 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
                               !node().errored &&
                               (node().kind === 'signal' || node().kind === 'store')
                             }
-                            onEdit={(path, nextValue) => {
-                              writeReactiveValue(node().raw, path, nextValue);
-                            }}
+                            onEdit={(path, nextValue) =>
+                              writeReactiveValue(node().raw, path, nextValue)
+                            }
                           />
                         </div>
                       </div>

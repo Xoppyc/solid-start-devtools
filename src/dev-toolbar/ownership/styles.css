@@ -621,3 +621,7 @@
 button[data-solid-ownership-chip]:hover {
   background: var(--start-dt-surface-hover);
 }
+
+[data-solid-ownership-edit-failed] {
+  text-decoration: wavy underline var(--start-dt-danger);
+}

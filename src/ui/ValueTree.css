@@ -217,3 +217,7 @@ button[data-solid-value-tree-row]:focus-visible {
   min-width: 3.5rem;
   max-width: 14rem;
 }
+
+[data-solid-value-edit-failed] {
+  text-decoration: wavy underline var(--start-dt-danger);
+}
