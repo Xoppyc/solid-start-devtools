@@ -166,7 +166,10 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
   const [selected, setSelected] = createSignal<string>();
   const [hovered, setHovered] = createSignal<string>();
   const [view, setView] = createSignal<ViewTransform>({ x: 0, y: 0, k: 1 });
-  const detail = useResizableDetail();
+  const detail = useResizableDetail({
+    storageKey: 'solid-start-devtools:reactivity-detail-width',
+    defaultWidth: 304,
+  });
 
   let viewport: HTMLDivElement | undefined;
   let fittedSize = '';
@@ -706,11 +709,7 @@ export default function ReactivityViewer(props: ReactivityViewerProps): JSX.Elem
               <Show when={selectedNode()}>
                 {(node) => (
                   <aside data-solid-reactivity-detail style={{ width: `${detail.width()}px` }}>
-                    <ResizeHandle
-                      onResize={detail.onResizeDelta}
-                      onResizeEnd={detail.onResizeEnd}
-                      onReset={detail.reset}
-                    />
+                    <ResizeHandle detail={detail} />
                     <div data-solid-reactivity-detail-content>
                       <NodeSummary
                         node={node()}

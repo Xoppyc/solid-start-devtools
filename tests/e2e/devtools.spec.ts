@@ -477,6 +477,11 @@ test('maps the ownership tree', async ({ page }) => {
   const resetWidth = (await detail.boundingBox())!.width;
   expect(Math.abs(resetWidth - 320)).toBeLessThanOrEqual(2);
 
+  // The left arrow key widens the pane from the keyboard.
+  await handle.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(handle).toHaveAttribute('aria-valuenow', '336');
+
   await detail
     .locator('[data-solid-ownership-detail-head]')
     .getByRole('button', { name: 'View in graph' })

@@ -196,7 +196,7 @@ export default function OwnershipViewer(props: OwnershipViewerProps): JSX.Elemen
   const [query, setQuery] = createSignal('');
   const [collapsed, setCollapsed] = createSignal<string[]>([]);
   const [selected, setSelected] = createSignal<string>();
-  const detail = useResizableDetail();
+  const detail = useResizableDetail({ storageKey: 'solid-start-devtools:ownership-detail-width' });
 
   const firstSeen = new Map<string, number>();
   let appliedFocus: { owner: object } | undefined;
@@ -468,11 +468,7 @@ export default function OwnershipViewer(props: OwnershipViewerProps): JSX.Elemen
               <Show when={selectedNode()}>
                 {(node) => (
                   <aside data-solid-ownership-detail style={{ width: `${detail.width()}px` }}>
-                    <ResizeHandle
-                      onResize={detail.onResizeDelta}
-                      onResizeEnd={detail.onResizeEnd}
-                      onReset={detail.reset}
-                    />
+                    <ResizeHandle detail={detail} />
                     <div data-solid-ownership-detail-content>
                       <div data-solid-ownership-detail-head>
                         <span data-solid-ownership-kind={node().kind} />

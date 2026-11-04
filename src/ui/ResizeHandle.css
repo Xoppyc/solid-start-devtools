@@ -51,3 +51,12 @@
   background: var(--start-dt-accent);
   opacity: 1;
 }
+
+[data-solid-resize-handle]:focus-visible {
+  outline: none;
+}
+
+[data-solid-resize-handle]:focus-visible::after {
+  background: var(--start-dt-accent);
+  opacity: 1;
+}
